@@ -1,0 +1,29 @@
+.venv/
+instance/
+__pycache__/
+.pytest_cache/
+*.pyc
+.idea/
+
+workspace/
+
+# Local environments
+.venv/
+venv/
+.idea/
+
+# Experiment data and generated files
+workspace/
+instance/
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# Credentials and local configuration
+.env
+.env.*
+!.env.example
+secret.key
+
+# Windows download metadata
+*:Zone.Identifier

@@ -1,3 +1,56 @@
+# Current validation · 0.5.0 (2026-09-25)
+
+The results below apply to this package. Older results retained later in this
+file are historical and do not imply that medical datasets were rerun today.
+
+- 32 pytest tests passed. This includes all inherited training, pause/resume,
+  optimizer, scheduling, deletion and path-algebra tests, plus Lorentz constraints,
+  Lorentz/Poincare distance agreement, isometries, identical-state fitting,
+  undefined conditional measures, identity/rotation/scaling/translation transport,
+  boundary loss, and MLP/CNN zero-reference reconstruction with nonzero biases.
+- 100 independently enumerated path-field checks passed.
+- Node checks passed for camera/tab state, Observatory contexts, and all 79,490
+  structural carriers (including zero-mass edges). All-node labels are verified
+  against every node identity in the renderer test.
+- Chromium browser_smoke passed: deep MLP, preparation, actual training and pause,
+  complete geometry, fields, gates, plots and Observatory. No JS exceptions.
+- Chromium browser_integration passed: scheduling/backfill and deletion workflows.
+- Chromium browser_hyperbolic passed: H3 ball selection, rotation, anchor release,
+  labels, intrinsic/embedded/screen pair inspector, zero reference, transformed
+  fields, identity reset, two-frame transformation sweep, checkpoint playback,
+  geometry video download, and stale-response protection. No JS exceptions.
+- Desktop screenshots of the ball and transformed field comparisons were inspected.
+
+Runtime: Linux, Python 3.12, PyTorch 2.6.0+cpu / torchvision 0.21.0+cpu,
+Playwright 1.51.0 Chromium. Application dependency pins are unchanged. Numerical
+checks used installed NumPy 2.3.5 and SciPy 1.17.0; the exact older pinned NumPy/
+SciPy environment was not recreated in this release. Browser tests use synthetic
+MLPs; CNN transformation/zero-reference paths have numerical coverage. Real
+FashionMNIST and PneumoniaMNIST downloads, CUDA, native Windows/macOS, long
+training runs and maximum-size Lorentz fits were not rerun here.
+
+The short 25-step browser fit intentionally exercises diagnostics, not convergence:
+conditional held-out stress remained high and the UI reported high distortion.
+No test establishes globally optimal embeddings or absence of genuine contraction.
+See REPRESENTATION_03.md for numerical budgets and explicit limitations.
+
+Reproduce from the project root with your configured Python environment:
+
+```bash
+python -m pytest -q
+python tests/input_fields_numerical.py
+node tests/geometry_state.cjs
+node tests/render_completeness.cjs
+node tests/observatory_context.cjs
+```
+
+Optional browser tests require Playwright and its Chromium runtime, which are
+development dependencies, not requirements for running the app itself.
+
+---
+
+# Historical validation record
+
 # Validation for 0.2.0
 
 Environment: Linux, Python 3.12, CPU PyTorch 2.6.0+cpu, torchvision 0.21.0+cpu. Browser: Playwright 1.51.0 Chromium headless. These checks establish operation on this stack, not identical numerical behavior on every OS, GPU or dependency version.

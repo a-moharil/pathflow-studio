@@ -1,5 +1,5 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
-const controls={};global.$=id=>controls[id]??={value:'0',checked:false};global.window={devicePixelRatio:1};
+const controls={};global.$=id=>controls[id]??={value:'0',checked:false,addEventListener(){}};global.window={devicePixelRatio:1};
 vm.runInThisContext(fs.readFileSync(path.join(__dirname,'../lab/static/geometry.js'),'utf8')+'\nglobal.GeometryView=GeometryView;');
 const v=Object.create(GeometryView.prototype);Object.assign(v,{k:0,w:800,h:500,base:50,pan:[45,-22],selected:0,fitted:true,canvas:{width:800,height:500,getBoundingClientRect:()=>({width:0,height:0})},ctx:{setTransform(){}}});
 $('zoom0').value='.7';$('dimension0').value='2';$('anchor0').checked=true;

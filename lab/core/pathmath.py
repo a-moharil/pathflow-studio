@@ -181,7 +181,15 @@ def analyze(model,x,x0,readout,gates=None,geometry_enabled=True):
             C,cg,_=geometry(sizes,offset,layers,Fc,model.config['geometry_limit'],model.config['landmarks'],anchors,measurement_limit=model.config.get('measurement_limit',model.config['geometry_limit']));C-=C.mean(0);S-=S.mean(0);rotation,_=orthogonal_procrustes(C,S);C=C@rotation;out['conditional_geometry']=cg
         else:C=S.copy();out['conditional_geometry']=dict(mode='undefined',responses=dict(status='undefined_measure',reason='All conditional path amplitudes vanish.',deff=None,dstar=None))
         scale=sg['unit'];out['positions']=[(S/scale).tolist(),(C/scale).tolist()]
-        out['nodes']=[dict(layer=l,index=i,label=f'L{l}:{i}') for l,n in enumerate(sizes) for i in range(n)]
+        out['nodes']=[]
+        for l,n in enumerate(sizes):
+            for i in range(n):
+                shape=model.shapes[l] if l<len(model.shapes) else None
+                label=f'L{l} · unit {i}'
+                if shape is not None and len(shape)==3:
+                    channel,y,x=np.unravel_index(i,shape);label=f'L{l} · c{channel} ({x},{y})'
+                if l==len(sizes)-1:label='Readout bookkeeping sink'
+                out['nodes'].append(dict(layer=l,index=i,label=label))
         # All execution edges are retained; no display mass is invented.
         out['edges']=[dict(u=int(u+offset[l]),v=int(v+offset[l+1]),s=float(Fs[l][k]),c=float(Fc[l][k])) for l,(uu,vv,w) in enumerate(layers) for k,(u,v) in enumerate(zip(uu,vv))]
     return out

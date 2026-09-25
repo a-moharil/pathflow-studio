@@ -48,7 +48,7 @@ def delete_run(root,rid):
 
 def queue_measurement(root,rid,payload):
     """Avoid repeated queued/running/completed jobs for the same measurement request."""
-    payload=dict(payload,analysis_version=2)
+    payload=dict(payload,analysis_version=4)
     encoded=json.dumps(payload,sort_keys=True)
     with db(root) as c:
         c.execute('BEGIN IMMEDIATE')

@@ -127,7 +127,7 @@ def measure_missing(rid):
     with st.db(root()) as db:steps=[v[0] for v in db.execute('SELECT step FROM measurements WHERE run=? AND step BETWEEN ? AND ? ORDER BY step',(rid,lo,hi))]
     jobs=[]
     for step in steps:
-        payload=dict(kind='analysis',step=step,x=int(p.get('x',0)),reference=int(p.get('reference',1)),readout=p.get('readout',dict(scope='all',a=0,b=1)),gates=p.get('gates',{}),measurement_limit=budget)
+        payload=dict(kind='analysis',step=step,x=int(p.get('x',0)),reference=p.get('reference',1),reference_type=p.get('reference_type','dataset'),transform=p.get('transform',{}),readout=p.get('readout',dict(scope='all',a=0,b=1)),gates=p.get('gates',{}),measurement_limit=budget)
         jobs.append(st.queue_measurement(root(),rid,payload))
     return jsonify(jobs=jobs,checkpoints=len(steps))
 
@@ -151,3 +151,22 @@ def measurement_settings(rid):
         c=validate(c|{k:p[k] for k in ['geometry_every','measurement_limit'] if k in p})
         db.execute('UPDATE runs SET config=? WHERE id=?',(json.dumps(c),rid))
     return jsonify(geometry_every=c['geometry_every'],measurement_limit=c['measurement_limit'],cost=estimate(c))
+
+
+@web.get('/api/job/<jid>/pair-distance')
+def pair_distance(jid):
+    with st.db(root()) as db:row=db.execute('SELECT status,result FROM jobs WHERE id=?',(jid,)).fetchone()
+    if not row:abort(404)
+    if row['status']!='completed':raise ValueError('Wait for the analysis to complete')
+    data=json.loads(Path(row['result']).read_text())
+    if 'positions' not in data:raise ValueError('Choose a geometry analysis')
+    from .core.hyperbolic import inspect_pair
+    return jsonify(inspect_pair(data,int(request.args.get('u',0)),int(request.args.get('v',1))))
+
+@web.post('/api/job/<jid>/cancel')
+def cancel_analysis(jid):
+    with st.db(root()) as db:
+        row=db.execute('SELECT status FROM jobs WHERE id=?',(jid,)).fetchone()
+        if row is None:abort(404)
+        changed=db.execute("UPDATE jobs SET status='cancelled',progress='Cancelled by user' WHERE id=? AND status='queued'",(jid,)).rowcount
+    return jsonify(cancelled=bool(changed),status=row['status'])

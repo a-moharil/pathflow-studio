@@ -96,3 +96,8 @@ Open the Observatory from a computed geometry to carry its scope, pair and gate 
 Deletion is available in the registry and experiment page. The confirmation lists run file count and size. Queued jobs are cancelled; in-flight work completes its current operation before the single worker removes the run files and its database records. Shared datasets remain. Failed cleanup is visible and can be retried. Deletion is permanent.
 
 Bootstrap now attempts Python's ensurepip if the selected virtual environment lacks pip. On Ubuntu an incomplete Python installation may still require its matching python3-venv package. Use the same interpreter for bootstrap and run.py.
+
+
+## Version 0.5.0 representation update
+
+See [docs/REPRESENTATION_03.md](docs/REPRESENTATION_03.md) for Lorentz H3, zero-reference and affine field investigations, state/provenance, limits, and playback. Existing setup and working interpreter are retained.

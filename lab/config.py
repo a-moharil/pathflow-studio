@@ -42,4 +42,4 @@ def estimate(c):
             nodes+=nh*nh*out;h=nh;ch=out
         n=h*h*ch;edges+=n*classes;params+=n*classes+(classes if c['bias'] else 0);nodes+=classes
     if nodes>30000 or edges>2000000: raise ValueError('Local execution-graph budget exceeded (30,000 nodes / 2 million edges). Choose a narrower or strided model.')
-    return dict(nodes=nodes+1,edges_upper_bound=edges+2,parameters=params,full_distance_mb=round((nodes+1)**2*8/1e6,1),checkpoint_mb=round(params*16/1e6,2))
+    return dict(nodes=nodes+1,edges_upper_bound=edges+2,parameters=params,full_distance_mb=round((nodes+1)**2*8/1e6,1),checkpoint_mb=round(params*16/1e6,2),measurement_within_budget=nodes+1<=c.get('measurement_limit',2500),distance_source_runs=nodes+1,bcan_radius_count=36,working_memory_planning_mb=round((nodes+1)**2*8*4/1e6,1))

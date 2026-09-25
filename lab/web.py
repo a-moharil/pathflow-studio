@@ -22,7 +22,12 @@ def compare():return render_template('compare.html')
 @web.get('/api/runs')
 def runs():
     with st.db(root()) as db:rows=db.execute('SELECT id FROM runs ORDER BY created DESC').fetchall()
-    return jsonify([st.run(root(),r[0]) for r in rows])
+    result=[st.run(root(),r[0]) for r in rows]
+    with st.db(root()) as db:
+        for r in result:
+            r['analysis_count']=db.execute('SELECT count(*) FROM observations WHERE run=?',(r['id'],)).fetchone()[0]
+            r['pending_measurements']=db.execute("SELECT count(*) FROM jobs WHERE run=? AND status IN ('queued','running')",(r['id'],)).fetchone()[0]
+    return jsonify(result)
 @web.post('/api/design/check')
 def check():
     c=validate(request.json);return jsonify(config=c,cost=estimate(c),optimizer=specification(c),dataset=datasets.status(root(),c))
@@ -39,7 +44,7 @@ def detail(rid):
     with st.db(root()) as db:
         r['metrics']=[json.loads(x[0]) for x in db.execute('SELECT payload FROM measurements WHERE run=? ORDER BY step',(rid,))]
         r['jobs']=[{k:v for k,v in dict(j).items() if k!='result'} for j in db.execute('SELECT * FROM jobs WHERE run=? ORDER BY created DESC LIMIT 30',(rid,))]
-    r['checkpoints']=[m['step'] for m in r['metrics']];r['optimizer']=specification(r['config']);return jsonify(r)
+    r['checkpoints']=[m['step'] for m in r['metrics']];r['optimizer']=specification(r['config']);r['analysis_cost']=estimate(r['config']);return jsonify(r)
 @web.post('/api/run/<rid>/control')
 def control(rid):
     action=request.json.get('action')
@@ -74,7 +79,7 @@ def job(jid):
 @web.get('/api/run/<rid>/observations')
 def observations(rid):
     st.run(root(),rid)
-    with st.db(root()) as db:rows=db.execute('SELECT payload FROM observations WHERE run=? ORDER BY step',(rid,)).fetchall()
+    with st.db(root()) as db:rows=db.execute('SELECT payload FROM observations WHERE run=? ORDER BY step, rowid',(rid,)).fetchall()
     return jsonify([json.loads(r[0]) for r in rows])
 @web.get('/api/run/<rid>/dataset')
 def data_info(rid):
@@ -101,7 +106,9 @@ def checkpoint(rid,step):
 def delete_preview(rid):
     r=st.run(root(),rid);folder=Path(root())/rid
     files=[p for p in folder.rglob('*') if p.is_file()] if folder.exists() else []
-    return jsonify(name=r['config']['name'],status=r['status'],files=len(files),bytes=sum(p.stat().st_size for p in files),shared_datasets_preserved=True)
+    with st.db(root()) as db:
+        counts={table:db.execute(f'SELECT count(*) FROM {table} WHERE run=?',(rid,)).fetchone()[0] for table in ['measurements','observations','jobs']}
+    return jsonify(name=r['config']['name'],status=r['status'],files=len(files),bytes=sum(p.stat().st_size for p in files),records=counts,shared_datasets_preserved=True)
 
 @web.post('/api/run/<rid>/delete')
 def delete_experiment(rid):
@@ -129,3 +136,18 @@ def measurement_jobs(rid):
     st.run(root(),rid)
     with st.db(root()) as db:rows=db.execute('SELECT id,payload,status,progress,error FROM jobs WHERE run=? ORDER BY created',(rid,)).fetchall()
     return jsonify([dict(r) for r in rows])
+
+
+@web.post('/api/run/<rid>/measurement-settings')
+def measurement_settings(rid):
+    p=request.json
+    with st.db(root()) as db:
+        db.execute('BEGIN IMMEDIATE')
+        row=db.execute('SELECT config,status FROM runs WHERE id=?',(rid,)).fetchone()
+        if not row:raise KeyError('Run not found')
+        if row['status'] not in ['ready','paused','stopped','completed','failed']:
+            raise ValueError('Pause training and wait for its checkpoint before changing the measurement schedule.')
+        c=json.loads(row['config'])
+        c=validate(c|{k:p[k] for k in ['geometry_every','measurement_limit'] if k in p})
+        db.execute('UPDATE runs SET config=? WHERE id=?',(json.dumps(c),rid))
+    return jsonify(geometry_every=c['geometry_every'],measurement_limit=c['measurement_limit'],cost=estimate(c))

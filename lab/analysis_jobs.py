@@ -58,7 +58,7 @@ def process_job(root,j):
                 result['positions']=((pos-centre)@R+target).tolist()
             else:np.savez(frame_path,structural=pos[0])
             if gates:result['native']=analyze(m,d['test_x'][a],d['test_x'][b],readout,{},False)
-            result.update(measurement_settings=dict(limit=budget,epsilon=.03,estimator='bcan-1'),step=step,x=a,reference=b,labels=[int(d['test_y'][a]),int(d['test_y'][b])])
+            result.update(analysis_version=2,measurement_settings=dict(limit=budget,epsilon=.03,estimator='bcan-1'),step=step,x=a,reference=b,labels=[int(d['test_y'][a]),int(d['test_y'][b])])
             if kind=='dose':
                 result['dose_response']=[]
                 for alpha in [0.,.25,.5,.75,1.]:

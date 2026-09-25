@@ -88,7 +88,7 @@ def bcan(D,strength):
         if counts[i]<=n*.5<counts[i-1]:xi=float(np.exp(np.log(radii[i-1])+(n*.5-counts[i-1])/(counts[i]-counts[i-1])*np.log(radii[i]/radii[i-1])));break
     for i,r in enumerate(radii):
         lo=max(0,i-3);hi=min(len(radii),i+4);x=np.log(radii[lo:hi]);y=np.log(counts[lo:hi]);x=x-x.mean();y=y-y.mean();slope=float(x@y/(x@x));r2=float((x@y)**2/((x@x)*(y@y))) if y@y>0 else 0.
-        profile.append(dict(radius=float(r),boxes=counts[i],deff=-slope,r2=r2,qualified=bool(.015<=counts[i]/n<=.85 and r2>=.9)))
+        profile.append(dict(radius=float(r),boxes=counts[i],window_start=float(radii[lo]),window_end=float(radii[hi-1]),window_points=hi-lo,box_fraction=counts[i]/n,deff=-slope,r2=r2,qualified=bool(.015<=counts[i]/n<=.85 and r2>=.9)))
     good=[p['deff'] for p in profile if p['qualified']];near=min(profile,key=lambda p:abs(np.log(p['radius']/xi))) if xi else None
     return dict(dstar=max(good) if good else None,deff=near['deff'] if near and near['qualified'] else None,xi50=xi,profile=profile)
 

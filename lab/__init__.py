@@ -19,6 +19,9 @@ def create_app(root=None):
     def bad(e):return jsonify(error=str(e)),400
     @app.errorhandler(KeyError)
     def missing(e):return jsonify(error=str(e)),404
+    @app.context_processor
+    def version_context():
+        return {'studio_version':(Path(__file__).resolve().parents[1]/'VERSION').read_text().strip()}
     from .web import web
     app.register_blueprint(web)
     return app

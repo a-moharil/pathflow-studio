@@ -159,3 +159,29 @@ def test_geometry_schedule(tmp_path):
     quantum(tmp_path,st.run(tmp_path,rid))
     with st.db(tmp_path) as db:payloads=[json.loads(j[0]) for j in db.execute('SELECT payload FROM jobs WHERE run=?',(rid,))]
     assert {p['step'] for p in payloads}=={0,1};assert all(p['readout']['scope']=='all' for p in payloads)
+
+
+@pytest.mark.parametrize('model',['mlp','cnn'])
+@pytest.mark.parametrize('activation',['relu','tanh'])
+def test_input_fields_integration(model,activation):
+    from lab.core.pathmath import graph
+    c=validate(dict(model=model,activation=activation,widths=[3,2],channels=[1,1]))
+    torch.manual_seed(15);m=Network(c)
+    rng=np.random.default_rng(8);x=rng.random((1,28,28),dtype=np.float32);r=rng.random((1,28,28),dtype=np.float32)
+    readout=dict(scope='all',a=0,b=1)
+    a=analyze(m,x,r,readout,{},False)
+    assert a['input_fields']['shape']==[1,28,28]
+    for side in ['structural','conditional']:
+        if a[side]['defined']:
+            field=np.array(a['input_fields'][side]);assert field.shape==(28,28)
+            assert field.min()>=0 and field.sum()==pytest.approx(1)
+        else:assert a['input_fields'][side] is None
+    b=analyze(m,r,x,readout,{},False)
+    if a['conditional']['defined']:
+        np.testing.assert_allclose(a['input_fields']['conditional'],b['input_fields']['conditional'])
+    else:assert b['input_fields']['conditional'] is None
+    zero=analyze(m,x,x,readout,{},False)
+    assert zero['input_fields']['conditional'] is None
+    gated=analyze(m,x,r,readout,{'0':{'0':0}},False)
+    assert gated['input_fields']['structural']==a['input_fields']['structural']
+    assert gated['vector_residual']<1e-12

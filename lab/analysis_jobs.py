@@ -69,6 +69,6 @@ def process_job(root,j):
     with st.db(root) as db:
         db.execute("UPDATE jobs SET status='completed',result=? WHERE id=?",(str(path),j['id']))
         if kind in ['analysis','dose']:
-            summary={k:v for k,v in result.items() if k not in ['nodes','edges','positions']}
+            summary={k:v for k,v in result.items() if k not in ['nodes','edges','positions','input_fields']}
             db.execute('INSERT OR REPLACE INTO observations VALUES(?,?,?,?)',(j['id'],r['id'],result['step'],json.dumps(summary)))
 

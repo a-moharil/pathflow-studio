@@ -200,6 +200,6 @@ def healthcare_submit(rid):
     run=st.run(root(),rid)
     if run['config']['dataset'] not in ['pneumonia','synthetic']:raise ValueError('Select a binary healthcare experiment')
     p=dict(request.json or {})
-    if p.get('kind') not in ['healthcare_case','healthcare_dose','healthcare_cohort']:raise ValueError('Invalid healthcare job')
+    if p.get('kind') not in ['healthcare_case','healthcare_dose','healthcare_cohort','healthcare_evidence']:raise ValueError('Invalid healthcare job')
     p['healthcare_version']=1
     return jsonify(id=st.queue_measurement(root(),rid,p))

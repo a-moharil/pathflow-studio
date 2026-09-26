@@ -40,6 +40,15 @@ def process(root,job):
     original=X[x];reference=np.zeros_like(original) if reference_type=='zero' else X[r]
     context=dict(experiment=run['id'],dataset=config['dataset'],architecture=config,checkpoint=step,split=split,x=x,x_source_index=int(ids[x]),reference_type=reference_type,reference=r if reference_type=='dataset' else None,reference_source_index=int(ids[r]) if reference_type=='dataset' else None,readout=readout,transform=transform,healthcare_version=1,analysis_core_version=6,threshold=threshold)
     report=dict(context=context,class_names=['Normal','Pneumonia'] if config['dataset']=='pneumonia' else ['Class 0','Class 1'],kind=p['kind'],research_scope='Model computation on benchmark images. Fields are not lesion segmentations; probabilities are uncalibrated model outputs.')
+    if p['kind']=='healthcare_evidence':
+        from .evidence_jobs import run as evidence_run
+        report['evidence']=evidence_run(model,original,reference,readout,p,lambda message:st.progress(root,job['id'],message),X)
+        report['labels']=[int(Y[x]),None if reference_type=='zero' else int(Y[r])]
+        for case in report['evidence'].get('cases',[]):case.update(label=int(Y[case['index']]),source_index=int(ids[case['index']]))
+        report['context'].update(evidence_version='evidence-1',transform=specification(),evidence_settings=p)
+        path=Path(root)/run['id']/f"healthcare_{job['id']}.json";st.atomic_json(path,report)
+        with st.db(root) as db:db.execute("UPDATE jobs SET status='completed',result=?,progress='Visual evidence ready' WHERE id=?",(str(path),job['id']))
+        return
     if p['kind']=='healthcare_cohort':
         st.progress(root,job['id'],f'Evaluating all {len(X)} {split} images')
         logits=[]

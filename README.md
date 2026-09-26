@@ -1,3 +1,7 @@
+# Visual evidence update 0.7.0
+
+Healthcare investigation now includes Visual evidence. See `docs/VISUAL_EVIDENCE_08.md` for definitions, controls, comparison protocols and limitations.
+
 # Fitting update 0.6.1
 
 See `docs/FITTING_07.md` for the new iteration budgets and dimension diagnostics.

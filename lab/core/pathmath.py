@@ -35,7 +35,9 @@ def graph(model,readout):
                                 for dx in range(kw):
                                     ix=x*sx+dx-px
                                     if 0<=ix<width:u.append((i*h+iy)*width+ix);v.append(dest);weights.append(w[j,i,dy,dx])
-        layers.append((np.asarray(u,dtype=int),np.asarray(v,dtype=int),np.asarray(weights,dtype=float)))
+        weights=np.asarray(weights,dtype=float)
+        if l in getattr(model,'occurrence_factors',{}):weights=weights*model.occurrence_factors[l]
+        layers.append((np.asarray(u,dtype=int),np.asarray(v,dtype=int),weights))
     a=int(readout.get('a',0));b=readout.get('b');classes=sizes[-2]
     scope=readout.get('scope','selected')
     if scope not in ['selected','all']:raise ValueError('Invalid path scope')

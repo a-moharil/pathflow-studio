@@ -50,7 +50,7 @@ def case_analysis(model,x,reference,readout,gates=None):
     result.update(signed_field=signed.tolist(),signed_field_sum=float(signed.sum()),signed_field_residual=abs(float(signed.sum())-result['delta']),path_hellinger=h,layer_marginals=layers_out,probabilities=softmax(result['logits']).tolist(),reference_probabilities=softmax(result['reference_logits']).tolist(),margin=margin(result['logits']),reference_margin=margin(result['reference_logits']))
     s=np.asarray(result['input_fields']['structural']);c=result['input_fields']['conditional']
     result['field_redistribution']=(np.asarray(c)-s).tolist() if c is not None else None
-    result['field_b']=dict(status='not_implemented',reason='Primitive-occurrence intervention footprint is not implemented. Signed contrast contributions are a separate quantity.')
+    result['field_b']=dict(status='support_not_selected',reason='Select convolution support in Visual evidence to compute Field B. Signed contrast contributions are a separate quantity.')
     return result
 
 

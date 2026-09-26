@@ -159,3 +159,69 @@ def test_geometry_schedule(tmp_path):
     quantum(tmp_path,st.run(tmp_path,rid))
     with st.db(tmp_path) as db:payloads=[json.loads(j[0]) for j in db.execute('SELECT payload FROM jobs WHERE run=?',(rid,))]
     assert {p['step'] for p in payloads}=={0,1};assert all(p['readout']['scope']=='all' for p in payloads)
+
+
+@pytest.mark.parametrize('model',['mlp','cnn'])
+@pytest.mark.parametrize('activation',['relu','tanh'])
+def test_input_fields_integration(model,activation):
+    from lab.core.pathmath import graph
+    c=validate(dict(model=model,activation=activation,widths=[3,2],channels=[1,1]))
+    torch.manual_seed(15);m=Network(c)
+    rng=np.random.default_rng(8);x=rng.random((1,28,28),dtype=np.float32);r=rng.random((1,28,28),dtype=np.float32)
+    readout=dict(scope='all',a=0,b=1)
+    a=analyze(m,x,r,readout,{},False)
+    assert a['input_fields']['shape']==[1,28,28]
+    for side in ['structural','conditional']:
+        if a[side]['defined']:
+            field=np.array(a['input_fields'][side]);assert field.shape==(28,28)
+            assert field.min()>=0 and field.sum()==pytest.approx(1)
+        else:assert a['input_fields'][side] is None
+    b=analyze(m,r,x,readout,{},False)
+    if a['conditional']['defined']:
+        np.testing.assert_allclose(a['input_fields']['conditional'],b['input_fields']['conditional'])
+    else:assert b['input_fields']['conditional'] is None
+    zero=analyze(m,x,x,readout,{},False)
+    assert zero['input_fields']['conditional'] is None
+    gated=analyze(m,x,r,readout,{'0':{'0':0}},False)
+    assert gated['input_fields']['structural']==a['input_fields']['structural']
+    assert gated['vector_residual']<1e-12
+
+
+def test_measurement_settings_existing_run(tmp_path):
+    app=create_app(tmp_path);client=app.test_client();client.get('/')
+    with client.session_transaction() as s:h={'X-CSRF-Token':s['csrf']}
+    c=validate(dict(widths=[2],train_size=32,updates=2));datasets.prepare(tmp_path,c);rid=st.create(tmp_path,c)
+    url=f'/api/run/{rid}/measurement-settings'
+    assert client.post(url,json={'geometry_every':1,'measurement_limit':3000},headers=h).status_code==200
+    assert st.run(tmp_path,rid)['config']['geometry_every']==1
+    with st.db(tmp_path) as db:db.execute("UPDATE runs SET status='training' WHERE id=?",(rid,))
+    assert client.post(url,json={'geometry_every':0},headers=h).status_code==400
+    preview=client.get(f'/api/run/{rid}/delete-preview').json
+    assert set(preview['records'])=={'jobs','measurements','observations'}
+
+
+def test_default_cnn_landmark_has_full_measurements():
+    c=validate(dict(model='cnn',dataset='fashion',geometry_limit=500,measurement_limit=2500))
+    torch.manual_seed(2);m=Network(c)
+    rng=np.random.default_rng(3);x=rng.random((1,28,28),dtype=np.float32);r=rng.random((1,28,28),dtype=np.float32)
+    d=analyze(m,x,r,{'scope':'all','a':0,'b':1})
+    assert len(d['nodes'])==2001
+    assert d['structural_geometry']['mode']=='landmark'
+    response=d['structural_geometry']['responses']
+    assert len(response['profile'])==36
+    assert all(p['window_start']<=p['radius']<=p['window_end'] for p in response['profile'])
+    assert response['status'] in ['available','no_qualified_window']
+
+
+def test_scheduled_default_cnn_result(tmp_path):
+    st.init(tmp_path)
+    c=validate(dict(model='cnn',dataset='synthetic',train_size=32,updates=1,checkpoint_every=1,geometry_every=1,measurement_limit=2500))
+    datasets.prepare(tmp_path,c);rid=st.create(tmp_path,c)
+    with st.db(tmp_path) as db:db.execute("UPDATE runs SET status='training' WHERE id=?",(rid,))
+    quantum(tmp_path,st.run(tmp_path,rid));tick(tmp_path)
+    with st.db(tmp_path) as db:
+        rows=db.execute('SELECT payload FROM observations WHERE run=?',(rid,)).fetchall()
+    assert rows
+    d=json.loads(rows[0][0]);assert d['scope']=='all'
+    assert d['structural_geometry']['mode']=='landmark'
+    assert len(d['structural_geometry']['responses']['profile'])==36

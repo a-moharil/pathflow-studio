@@ -1,3 +1,106 @@
+# Current validation · 0.5.1 (2026-09-26)
+
+This release passed the inherited 32 tests and six new metric-fitting / matrix
+export tests, 38 in total (37-test full-suite run plus the new matrix test in the
+six-test focused suite). The checks cover all-node fitting coverage, disjoint
+pair sets, reproducibility, recovery of known Euclidean and hyperbolic distances,
+independent 2-D/3-D/8-D tables, identical-state preservation, deformation errors,
+unchanged metric inputs, and exact/budgeted intrinsic matrix export.
+
+Three Chromium workflows passed with no JavaScript exceptions:
+
+- The deep-MLP training/pause, full carrier, field, intervention and Observatory smoke test.
+- Existing-run measurement settings/backfill and deletion integration.
+- Hyperbolic/Euclidean geometry, automatic checkpoint selection, nonempty temporal
+  deformation diagnostics, fidelity table, intrinsic submatrix, anchors, labels,
+  orbit, zero reference, transform sweep, checkpoint playback, video download,
+  and stale-response protection.
+
+Direct Node tests passed for independent 2-D coordinates unaffected by 3-D yaw/pitch,
+camera persistence, complete rendering of 79,490 edges including zero-mass carriers,
+all-node labels, and Observatory contexts. The 100 independently enumerated
+path-field checks also passed. The rendered fidelity table/scatter was inspected.
+
+## Observed approximation quality, not an acceptance claim
+
+A synthetic 790-node MLP checkpoint under the short 25-iteration browser budget
+had minimum training-pair degree 22 and zero unconstrained nodes. On identical
+diagnostic pairs, conditional Euclidean 3-D stress decreased from about 0.885
+(spectral initialization) to 0.359 (refinement). Structural Euclidean 3-D changed
+from 0.447 to 0.324. Hyperbolic 3-D stress was approximately 0.323 structural and
+0.432 conditional. Those remain high-distortion representations and are flagged.
+This example does not establish hyperbolic superiority or broad model performance.
+
+Saved analyses at updates 0 and 1 had different independent 2-D and 3-D coordinates
+for both measures. Temporal distance-deformation diagnostics were present. Coordinate
+change alone is not proof that every visible movement is intrinsic; that is why
+metric-change errors accompany the display.
+
+Runtime: Linux / Python 3.12, CPU torch 2.6.0, torchvision 0.21.0, NumPy 2.3.5,
+SciPy 1.17.0, Playwright 1.51.0 Chromium. Existing application requirements are
+unchanged; the exact older pinned NumPy/SciPy environment was not recreated.
+Synthetic MLP/CNN numerical tests were run; new browser coverage is synthetic MLP.
+No FashionMNIST/PneumoniaMNIST download rerun, CUDA test, or maximum-size fitting
+benchmark is claimed. The 8-D diagnostic is exercised numerically on a small graph.
+
+See METRIC_FIDELITY_04.md for objectives, sampling scope, numerical bounds, and
+limitations. Sections below are historical validation records.
+
+---
+
+# Current validation · 0.5.0 (2026-09-25)
+
+The results below apply to this package. Older results retained later in this
+file are historical and do not imply that medical datasets were rerun today.
+
+- 32 pytest tests passed. This includes all inherited training, pause/resume,
+  optimizer, scheduling, deletion and path-algebra tests, plus Lorentz constraints,
+  Lorentz/Poincare distance agreement, isometries, identical-state fitting,
+  undefined conditional measures, identity/rotation/scaling/translation transport,
+  boundary loss, and MLP/CNN zero-reference reconstruction with nonzero biases.
+- 100 independently enumerated path-field checks passed.
+- Node checks passed for camera/tab state, Observatory contexts, and all 79,490
+  structural carriers (including zero-mass edges). All-node labels are verified
+  against every node identity in the renderer test.
+- Chromium browser_smoke passed: deep MLP, preparation, actual training and pause,
+  complete geometry, fields, gates, plots and Observatory. No JS exceptions.
+- Chromium browser_integration passed: scheduling/backfill and deletion workflows.
+- Chromium browser_hyperbolic passed: H3 ball selection, rotation, anchor release,
+  labels, intrinsic/embedded/screen pair inspector, zero reference, transformed
+  fields, identity reset, two-frame transformation sweep, checkpoint playback,
+  geometry video download, and stale-response protection. No JS exceptions.
+- Desktop screenshots of the ball and transformed field comparisons were inspected.
+
+Runtime: Linux, Python 3.12, PyTorch 2.6.0+cpu / torchvision 0.21.0+cpu,
+Playwright 1.51.0 Chromium. Application dependency pins are unchanged. Numerical
+checks used installed NumPy 2.3.5 and SciPy 1.17.0; the exact older pinned NumPy/
+SciPy environment was not recreated in this release. Browser tests use synthetic
+MLPs; CNN transformation/zero-reference paths have numerical coverage. Real
+FashionMNIST and PneumoniaMNIST downloads, CUDA, native Windows/macOS, long
+training runs and maximum-size Lorentz fits were not rerun here.
+
+The short 25-step browser fit intentionally exercises diagnostics, not convergence:
+conditional held-out stress remained high and the UI reported high distortion.
+No test establishes globally optimal embeddings or absence of genuine contraction.
+See REPRESENTATION_03.md for numerical budgets and explicit limitations.
+
+Reproduce from the project root with your configured Python environment:
+
+```bash
+python -m pytest -q
+python tests/input_fields_numerical.py
+node tests/geometry_state.cjs
+node tests/render_completeness.cjs
+node tests/observatory_context.cjs
+```
+
+Optional browser tests require Playwright and its Chromium runtime, which are
+development dependencies, not requirements for running the app itself.
+
+---
+
+# Historical validation record
+
 # Validation for 0.2.0
 
 Environment: Linux, Python 3.12, CPU PyTorch 2.6.0+cpu, torchvision 0.21.0+cpu. Browser: Playwright 1.51.0 Chromium headless. These checks establish operation on this stack, not identical numerical behavior on every OS, GPU or dependency version.

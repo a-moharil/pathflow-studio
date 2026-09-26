@@ -22,7 +22,12 @@ def compare():return render_template('compare.html')
 @web.get('/api/runs')
 def runs():
     with st.db(root()) as db:rows=db.execute('SELECT id FROM runs ORDER BY created DESC').fetchall()
-    return jsonify([st.run(root(),r[0]) for r in rows])
+    result=[st.run(root(),r[0]) for r in rows]
+    with st.db(root()) as db:
+        for r in result:
+            r['analysis_count']=db.execute('SELECT count(*) FROM observations WHERE run=?',(r['id'],)).fetchone()[0]
+            r['pending_measurements']=db.execute("SELECT count(*) FROM jobs WHERE run=? AND status IN ('queued','running')",(r['id'],)).fetchone()[0]
+    return jsonify(result)
 @web.post('/api/design/check')
 def check():
     c=validate(request.json);return jsonify(config=c,cost=estimate(c),optimizer=specification(c),dataset=datasets.status(root(),c))
@@ -39,7 +44,7 @@ def detail(rid):
     with st.db(root()) as db:
         r['metrics']=[json.loads(x[0]) for x in db.execute('SELECT payload FROM measurements WHERE run=? ORDER BY step',(rid,))]
         r['jobs']=[{k:v for k,v in dict(j).items() if k!='result'} for j in db.execute('SELECT * FROM jobs WHERE run=? ORDER BY created DESC LIMIT 30',(rid,))]
-    r['checkpoints']=[m['step'] for m in r['metrics']];r['optimizer']=specification(r['config']);return jsonify(r)
+    r['checkpoints']=[m['step'] for m in r['metrics']];r['optimizer']=specification(r['config']);r['analysis_cost']=estimate(r['config']);return jsonify(r)
 @web.post('/api/run/<rid>/control')
 def control(rid):
     action=request.json.get('action')
@@ -74,7 +79,7 @@ def job(jid):
 @web.get('/api/run/<rid>/observations')
 def observations(rid):
     st.run(root(),rid)
-    with st.db(root()) as db:rows=db.execute('SELECT payload FROM observations WHERE run=? ORDER BY step',(rid,)).fetchall()
+    with st.db(root()) as db:rows=db.execute('SELECT payload FROM observations WHERE run=? ORDER BY step, rowid',(rid,)).fetchall()
     return jsonify([json.loads(r[0]) for r in rows])
 @web.get('/api/run/<rid>/dataset')
 def data_info(rid):
@@ -101,7 +106,9 @@ def checkpoint(rid,step):
 def delete_preview(rid):
     r=st.run(root(),rid);folder=Path(root())/rid
     files=[p for p in folder.rglob('*') if p.is_file()] if folder.exists() else []
-    return jsonify(name=r['config']['name'],status=r['status'],files=len(files),bytes=sum(p.stat().st_size for p in files),shared_datasets_preserved=True)
+    with st.db(root()) as db:
+        counts={table:db.execute(f'SELECT count(*) FROM {table} WHERE run=?',(rid,)).fetchone()[0] for table in ['measurements','observations','jobs']}
+    return jsonify(name=r['config']['name'],status=r['status'],files=len(files),bytes=sum(p.stat().st_size for p in files),records=counts,shared_datasets_preserved=True)
 
 @web.post('/api/run/<rid>/delete')
 def delete_experiment(rid):
@@ -120,7 +127,7 @@ def measure_missing(rid):
     with st.db(root()) as db:steps=[v[0] for v in db.execute('SELECT step FROM measurements WHERE run=? AND step BETWEEN ? AND ? ORDER BY step',(rid,lo,hi))]
     jobs=[]
     for step in steps:
-        payload=dict(kind='analysis',step=step,x=int(p.get('x',0)),reference=int(p.get('reference',1)),readout=p.get('readout',dict(scope='all',a=0,b=1)),gates=p.get('gates',{}),measurement_limit=budget)
+        payload=dict(kind='analysis',step=step,x=int(p.get('x',0)),reference=p.get('reference',1),reference_type=p.get('reference_type','dataset'),transform=p.get('transform',{}),readout=p.get('readout',dict(scope='all',a=0,b=1)),gates=p.get('gates',{}),measurement_limit=budget)
         jobs.append(st.queue_measurement(root(),rid,payload))
     return jsonify(jobs=jobs,checkpoints=len(steps))
 
@@ -129,3 +136,70 @@ def measurement_jobs(rid):
     st.run(root(),rid)
     with st.db(root()) as db:rows=db.execute('SELECT id,payload,status,progress,error FROM jobs WHERE run=? ORDER BY created',(rid,)).fetchall()
     return jsonify([dict(r) for r in rows])
+
+
+@web.post('/api/run/<rid>/measurement-settings')
+def measurement_settings(rid):
+    p=request.json
+    with st.db(root()) as db:
+        db.execute('BEGIN IMMEDIATE')
+        row=db.execute('SELECT config,status FROM runs WHERE id=?',(rid,)).fetchone()
+        if not row:raise KeyError('Run not found')
+        if row['status'] not in ['ready','paused','stopped','completed','failed']:
+            raise ValueError('Pause training and wait for its checkpoint before changing the measurement schedule.')
+        c=json.loads(row['config'])
+        c=validate(c|{k:p[k] for k in ['geometry_every','measurement_limit'] if k in p})
+        db.execute('UPDATE runs SET config=? WHERE id=?',(json.dumps(c),rid))
+    return jsonify(geometry_every=c['geometry_every'],measurement_limit=c['measurement_limit'],cost=estimate(c))
+
+
+@web.get('/api/job/<jid>/pair-distance')
+def pair_distance(jid):
+    with st.db(root()) as db:row=db.execute('SELECT status,result FROM jobs WHERE id=?',(jid,)).fetchone()
+    if not row:abort(404)
+    if row['status']!='completed':raise ValueError('Wait for the analysis to complete')
+    data=json.loads(Path(row['result']).read_text())
+    if 'positions' not in data:raise ValueError('Choose a geometry analysis')
+    from .core.hyperbolic import inspect_pair
+    return jsonify(inspect_pair(data,int(request.args.get('u',0)),int(request.args.get('v',1))))
+
+@web.post('/api/job/<jid>/cancel')
+def cancel_analysis(jid):
+    with st.db(root()) as db:
+        row=db.execute('SELECT status FROM jobs WHERE id=?',(jid,)).fetchone()
+        if row is None:abort(404)
+        changed=db.execute("UPDATE jobs SET status='cancelled',progress='Cancelled by user' WHERE id=? AND status='queued'",(jid,)).rowcount
+    return jsonify(cancelled=bool(changed),status=row['status'])
+
+@web.get('/api/job/<jid>/metric-matrix')
+def metric_matrix(jid):
+    """An explicitly requested intrinsic distance matrix, independent of embedding."""
+    import numpy as np
+    from scipy.sparse.csgraph import dijkstra
+    from .core.hyperbolic import metric_graph
+    with st.db(root()) as db:row=db.execute('SELECT * FROM jobs WHERE id=?',(jid,)).fetchone()
+    if not row or row['status']!='completed':raise ValueError('Choose a completed geometry analysis')
+    data=json.loads(Path(row['result']).read_text());side=request.args.get('side','s')
+    if side not in ['s','c']:raise ValueError('Invalid measure')
+    if side=='c' and not data['conditional']['defined']:raise ValueError('Conditional measure undefined')
+    n=len(data['nodes']);full=request.args.get('full')=='1'
+    if full and n>min(4000,int(data.get('measurement_settings',{}).get('limit',2500))):raise ValueError('Full matrix exceeds this analysis measurement budget; request the labelled sampled submatrix instead')
+    nodes=np.arange(n) if full else np.unique(np.linspace(0,n-1,min(64,n),dtype=int))
+    matrix=dijkstra(metric_graph(data,side),directed=False,indices=nodes)[:,nodes]/data['metric']['display_reference']['unit']
+    return jsonify(kind='full_intrinsic_matrix' if full else 'sampled_intrinsic_submatrix',node_ids=nodes.tolist(),node_labels=[data['nodes'][i]['label'] for i in nodes],unit=data['metric']['display_reference'],side=side,distances=matrix.tolist(),context=data.get('context'))
+
+
+@web.get('/healthcare/<rid>')
+def healthcare_page(rid):
+    run=st.run(root(),rid)
+    if run['config']['dataset'] not in ['pneumonia','synthetic']:raise ValueError('Healthcare page currently supports binary PneumoniaMNIST and synthetic validation experiments')
+    return render_template('healthcare.html',run=run)
+
+@web.post('/api/run/<rid>/healthcare')
+def healthcare_submit(rid):
+    run=st.run(root(),rid)
+    if run['config']['dataset'] not in ['pneumonia','synthetic']:raise ValueError('Select a binary healthcare experiment')
+    p=dict(request.json or {})
+    if p.get('kind') not in ['healthcare_case','healthcare_dose','healthcare_cohort']:raise ValueError('Invalid healthcare job')
+    p['healthcare_version']=1
+    return jsonify(id=st.queue_measurement(root(),rid,p))

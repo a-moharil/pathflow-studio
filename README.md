@@ -96,3 +96,30 @@ Open the Observatory from a computed geometry to carry its scope, pair and gate 
 Deletion is available in the registry and experiment page. The confirmation lists run file count and size. Queued jobs are cancelled; in-flight work completes its current operation before the single worker removes the run files and its database records. Shared datasets remain. Failed cleanup is visible and can be retried. Deletion is permanent.
 
 Bootstrap now attempts Python's ensurepip if the selected virtual environment lacks pip. On Ubuntu an incomplete Python installation may still require its matching python3-venv package. Use the same interpreter for bootstrap and run.py.
+
+
+## Version 0.5.0 representation update
+
+See [docs/REPRESENTATION_03.md](docs/REPRESENTATION_03.md) for Lorentz H3, zero-reference and affine field investigations, state/provenance, limits, and playback. Existing setup and working interpreter are retained.
+
+
+## Version 0.5.1 metric fidelity correction
+
+Read [docs/METRIC_FIDELITY_04.md](docs/METRIC_FIDELITY_04.md) for independent Euclidean fits, fully constrained Lorentz fitting, comparable diagnostics, intrinsic matrix inspection and automatic checkpoint selection. Previous embeddings are recomputed; saved training checkpoints remain usable.
+
+## Version 0.5.2 integrity augmentation
+
+See [docs/METRIC_INTEGRITY_05.md](docs/METRIC_INTEGRITY_05.md). This release fixes
+the near-coincident Lorentz gradient, rejects numerically invalid hyperbolic
+coordinates, preserves Euclidean results on hyperbolic failure, evaluates
+neighborhoods across all sampled layers, and labels spectral-preview diagnostics
+separately. Analysis cache version 6 requires reanalysis, not retraining.
+
+## Version 0.6.0 healthcare investigation
+
+Existing PneumoniaMNIST and synthetic binary experiments now link to a Healthcare
+Investigation page for case/reference analysis, exact signed input contributions,
+complete-path divergence, hidden-layer concentration, intervention controls,
+transformation playback and cohort predictive/intrinsic evidence. Supports both
+MLP and CNN saved checkpoints, with JSON/CSV/PNG export and persistent analysis
+history. See [docs/HEALTHCARE_06.md](docs/HEALTHCARE_06.md) for definitions and limits.

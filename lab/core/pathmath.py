@@ -67,6 +67,12 @@ def measure(sizes,layers,start,sec):
     H=float(np.clip(logZ-expected,0,logN));log_eta1=H-logN;log_eta2=2*logZ-float(forward(2)[-1][0])-logN
     return dict(defined=True,logZ=logZ,H1=H,Sdef=logN-H,eta1=math.exp(log_eta1),eta2=math.exp(log_eta2),log_eta1=log_eta1,log_eta2=log_eta2,log_path_count=logN,cut_sums=[float(f.sum()) for f in F]),F
 
+def input_origin_field(sources, first_cut_flow, shape, defined):
+    """Sum first-cut marginals at input sources, then sum image channels."""
+    if not defined:return None
+    mass=np.bincount(sources,weights=first_cut_flow,minlength=int(np.prod(shape)))
+    return mass.reshape(shape).sum(axis=0).tolist()
+
 def bcan(D,strength):
     n=len(D);positive=D[D>0];radii=np.geomspace(positive.min()*.95,positive.max()*1.005,36);counts=[]
     order=np.lexsort((np.arange(n),-strength))
@@ -82,7 +88,7 @@ def bcan(D,strength):
         if counts[i]<=n*.5<counts[i-1]:xi=float(np.exp(np.log(radii[i-1])+(n*.5-counts[i-1])/(counts[i]-counts[i-1])*np.log(radii[i]/radii[i-1])));break
     for i,r in enumerate(radii):
         lo=max(0,i-3);hi=min(len(radii),i+4);x=np.log(radii[lo:hi]);y=np.log(counts[lo:hi]);x=x-x.mean();y=y-y.mean();slope=float(x@y/(x@x));r2=float((x@y)**2/((x@x)*(y@y))) if y@y>0 else 0.
-        profile.append(dict(radius=float(r),boxes=counts[i],deff=-slope,r2=r2,qualified=bool(.015<=counts[i]/n<=.85 and r2>=.9)))
+        profile.append(dict(radius=float(r),boxes=counts[i],window_start=float(radii[lo]),window_end=float(radii[hi-1]),window_points=hi-lo,box_fraction=counts[i]/n,deff=-slope,r2=r2,qualified=bool(.015<=counts[i]/n<=.85 and r2>=.9)))
     good=[p['deff'] for p in profile if p['qualified']];near=min(profile,key=lambda p:abs(np.log(p['radius']/xi))) if xi else None
     return dict(dstar=max(good) if good else None,deff=near['deff'] if near and near['qualified'] else None,xi50=xi,profile=profile)
 
@@ -164,13 +170,26 @@ def analyze(model,x,x0,readout,gates=None,geometry_enabled=True):
     vector_delta=(y[0]-y0[0]).numpy();vector_residual=float(np.max(np.abs(output_path_sums-vector_delta)))
     selected_path_sum=float(output_path_sums[a]-(output_path_sums[int(b)] if b is not None else 0))
     out=dict(cancellation_scope='sum_of_output_amplitudes' if readout.get('scope')=='all' else 'selected_scalar_readout',scope=readout.get('scope','selected'),output_contrasts=vector_delta.tolist(),output_path_sums=output_path_sums.tolist(),vector_residual=vector_residual,contrast_l2=float(np.linalg.norm(vector_delta)),aggregate_path_sum=float(signed[0]),structural=s,conditional=c,delta=delta,path_sum=selected_path_sum,residual=abs(delta-selected_path_sum),absolute_path_sum=float(absolute[0]),cancellation=float(1-abs(signed[0])/absolute[0]) if absolute[0] else None,logits=y[0].tolist(),reference_logits=y0[0].tolist(),sizes=sizes,readout=readout,gates=gates or {},metric=dict(epsilon=.03,power=1,enrichment='number of execution edges in cut × normalized edge marginal'))
+    out['input_fields']=dict(version=1,shape=list(model.shapes[0]),
+        structural=input_origin_field(layers[0][0],Fs[0],model.shapes[0],s['defined']),
+        conditional=input_origin_field(layers[0][0],Fc[0],model.shapes[0],c['defined']),
+        definition='Input-origin marginal of the normalized complete-path measure; channels summed.',
+        normalization='Unit total mass when defined; null when the partition vanishes.')
     if geometry_enabled:
         S,sg,anchors=geometry(sizes,offset,layers,Fs,model.config['geometry_limit'],model.config['landmarks'],measurement_limit=model.config.get('measurement_limit',model.config['geometry_limit']));out['structural_geometry']=sg
         if c['defined']:
             C,cg,_=geometry(sizes,offset,layers,Fc,model.config['geometry_limit'],model.config['landmarks'],anchors,measurement_limit=model.config.get('measurement_limit',model.config['geometry_limit']));C-=C.mean(0);S-=S.mean(0);rotation,_=orthogonal_procrustes(C,S);C=C@rotation;out['conditional_geometry']=cg
         else:C=S.copy();out['conditional_geometry']=dict(mode='undefined',responses=dict(status='undefined_measure',reason='All conditional path amplitudes vanish.',deff=None,dstar=None))
         scale=sg['unit'];out['positions']=[(S/scale).tolist(),(C/scale).tolist()]
-        out['nodes']=[dict(layer=l,index=i,label=f'L{l}:{i}') for l,n in enumerate(sizes) for i in range(n)]
+        out['nodes']=[]
+        for l,n in enumerate(sizes):
+            for i in range(n):
+                shape=model.shapes[l] if l<len(model.shapes) else None
+                label=f'L{l} · unit {i}'
+                if shape is not None and len(shape)==3:
+                    channel,y,x=np.unravel_index(i,shape);label=f'L{l} · c{channel} ({x},{y})'
+                if l==len(sizes)-1:label='Readout bookkeeping sink'
+                out['nodes'].append(dict(layer=l,index=i,label=label))
         # All execution edges are retained; no display mass is invented.
         out['edges']=[dict(u=int(u+offset[l]),v=int(v+offset[l+1]),s=float(Fs[l][k]),c=float(Fc[l][k])) for l,(uu,vv,w) in enumerate(layers) for k,(u,v) in enumerate(zip(uu,vv))]
     return out

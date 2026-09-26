@@ -1,3 +1,7 @@
+# Fitting update 0.6.1
+
+See `docs/FITTING_07.md` for the new iteration budgets and dimension diagnostics.
+
 # Pathflow Studio 0.4.0
 
 A fresh local Flask project for training MLPs and CNNs and inspecting exact path measures, their intrinsic metrics, and low-dimensional projections. This directory is independent of the earlier Pathflow Lab prototype. It does not migrate previous databases.

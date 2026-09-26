@@ -1,4 +1,5 @@
 """Experimental distance fitting in Lorentz coordinates; intrinsic metric stays external."""
+from .fitsettings import dimensions, FitHistory, stop_reason
 import math
 import numpy as np
 import torch
@@ -117,12 +118,12 @@ def fit(n,dim,k,pairs,truth,initial,steps):
         X=flat.reshape(n,dim)
         if np.isfinite(loss) and loss<best[0]:best[:]=[loss,X.copy()]
         return loss,gradient
-    initial_loss=objective(initial.ravel())[0];history.append(dict(iteration=0,objective=initial_loss))
+    initial_loss=objective(initial.ravel())[0];history=FitHistory(objective,initial_loss)
     def callback(flat):
-        if len(history)<100:history.append(dict(iteration=len(history),objective=objective(flat)[0]))
-    solution=minimize(objective,initial.ravel(),jac=True,method='L-BFGS-B',bounds=[(-cap,cap)]*(n*dim),callback=callback,options={'maxiter':steps,'ftol':1e-10,'gtol':1e-7,'maxls':35})
+        history(flat)
+    solution=minimize(objective,initial.ravel(),jac=True,method='L-BFGS-B',bounds=[(-cap,cap)]*(n*dim),callback=callback,options={'maxiter':steps,'maxfun':max(15000,steps*40),'ftol':1e-10,'gtol':1e-7,'maxls':35})
     X=best[1];z=np.column_stack((np.sqrt(1/k+(X*X).sum(1)),X))
-    return z,dict(initial_objective=initial_loss,best_objective=best[0],iterations=int(solution.nit),evaluations=int(solution.nfev),converged=bool(solution.success),termination=str(solution.message),relative_error_floor=floor,history=history,coordinate_bound=cap,bound_fraction=float(np.mean(np.abs(X)>=cap*.999)))
+    return z,dict(initial_objective=initial_loss,best_objective=best[0],iterations=int(solution.nit),evaluations=int(solution.nfev),converged=bool(solution.success),termination=str(solution.message),relative_error_floor=floor,history=history.finish(solution),max_iterations=steps,max_evaluations=max(15000,steps*40),stop_reason=stop_reason(solution,steps),coordinate_bound=cap,bound_fraction=float(np.mean(np.abs(X)>=cap*.999)))
 
 
 def compute(data,k=1.,steps=200,design=None,T=None,sensitivity=False):
@@ -131,8 +132,8 @@ def compute(data,k=1.,steps=200,design=None,T=None,sensitivity=False):
     if n>4000:return dict(status='budget_exceeded',reason='Lorentz fitting is limited to 4000 nodes; intrinsic and Euclidean results remain available.')
     design=pair_design(data) if design is None else design;T=targets(data,design) if T is None else T
     pairs=design['train'];validation=design['validation'];sources=design['sources'];unit=data['metric']['display_reference']['unit']
-    result=dict(status='available',version='metric-fit-3',curvature=-k,unit=unit,steps=steps,seed=1024,training_pairs=len(pairs),validation_pairs=len(validation),minimum_training_degree=int(design['degree'].min()),unconstrained_nodes=int(np.sum(design['degree']==0)),alignment='Readout sink at origin; spatial orthogonal isometries, no scale fitting',dimensions={},deformation={})
-    for dim in ([3,8] if sensitivity else [3]):
+    result=dict(status='available',version='metric-fit-4',curvature=-k,unit=unit,steps=steps,seed=1024,training_pairs=len(pairs),validation_pairs=len(validation),minimum_training_degree=int(design['degree'].min()),unconstrained_nodes=int(np.sum(design['degree']==0)),alignment='Readout sink at origin; spatial orthogonal isometries, no scale fitting',dimensions={},deformation={})
+    for dim in ([3]+dimensions(sensitivity)):
         outputs=[];zs=[]
         for idx,side in enumerate(['s','c']):
             if side not in T:outputs.append(dict(status='undefined_measure'));zs.append(None);continue
@@ -144,9 +145,10 @@ def compute(data,k=1.,steps=200,design=None,T=None,sensitivity=False):
                 if optimization['best_objective']>.06:
                     rng=np.random.default_rng(710+dim);restart=rng.normal(size=(n,dim))*np.median(T[side]['train'])/math.sqrt(2*dim)
                     alternate,other=fit(n,dim,k,pairs,T[side]['train'],restart,steps)
+                    attempt_reports=[dict(optimization),dict(other)]
                     attempts=[optimization['best_objective'],other['best_objective']]
                     if other['best_objective']<optimization['best_objective']:z,optimization=alternate,other
-                    optimization=dict(optimization,restart_objectives=attempts,selection='Smallest fitting objective; validation not used for selection')
+                    optimization=dict(optimization,attempts=attempt_reports,restart_objectives=attempts,selection='Smallest fitting objective; validation not used for selection')
             before=z.copy()
             check=numerical_validity(z,k)
             if not check['valid']:

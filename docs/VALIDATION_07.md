@@ -1,0 +1,9 @@
+# Validation of fitting update 07 / 0.6.1
+
+- Existing and new Python suite: 53 tests passed in 36.69 seconds. A subsequently added test verifies that both numerical solvers accept a 5,000-iteration budget with 200,000 function evaluations; the complete four-test settings module passed. Total distinct passing tests: 54.
+- New numerical checks cover 8/16/32-D Euclidean and Lorentz fits, metric/input immutability, legacy 8-D requests, invalid dimensions and budgets, real iteration indices and final history retention after 5,000 callbacks.
+- Chromium workflow passed without JavaScript errors: UI accepts 501, request serialization preserves it, actual 25-iteration computations cover all diagnostic dimensions, chart and table render, checkpoint comparison, matrices, anchors, labels, orbit, transforms, zero reference, playback, recording and stale-request rejection pass. An exploratory 501-iteration all-dimensions browser run was stopped due to runtime; it is not counted as a completed benchmark. No claim is made that arbitrary 5,000-iteration runs converge or are fast.
+- Existing Node regressions passed: fidelity fallback states, camera and anchor state, independent 2-D projection, Observatory scope, all-node labels, 79,490 complete edges including 39,745 zero-mass carriers.
+- Git installer tested on a clean copy of delivered 0.6.0: exact updated source, new branch, staged changes, and preserved workspace sentinel. It checks baseline hashes and refuses a dirty tree.
+- No new project dependencies. Training, healthcare computations, intrinsic path measures, renderer and dependency files are unchanged. The source-integrity report lists exact changes and preserved files.
+- Validation used synthetic experiments on CPU. No new clinical performance or large-network convergence claim is made.

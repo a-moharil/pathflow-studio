@@ -63,9 +63,9 @@ def process_job(root,j):
             import hashlib
             from scipy.linalg import orthogonal_procrustes
             from .core.metricfit import refine,deformation
-            fit_steps=int(payload.get('embedding_steps',120));sensitivity=bool(payload.get('dimension_sensitivity',False))
-            if not 25<=fit_steps<=1000:raise ValueError('Embedding iterations must be 25..1000')
-            st.progress(root,j['id'],'Fitting independent Euclidean 2-D and 3-D metrics')
+            from .core.fitsettings import iterations,dimensions
+            fit_steps=iterations(payload.get('embedding_steps',120));sensitivity=dimensions(payload.get('diagnostic_dimensions',payload.get('dimension_sensitivity',False)))
+            st.progress(root,j['id'],'Fitting Euclidean dimensions '+', '.join(map(str,[2,3]+sensitivity)))
             for side in ['structural_geometry','conditional_geometry']:
                 result[side]['embedding_diagnostic_role']='Initial spectral preview only; displayed coordinates use euclidean.dimensions and projection_diagnostics'
             design,distances=refine(result,fit_steps,sensitivity)
@@ -82,12 +82,13 @@ def process_job(root,j):
             if gates:result['native']=analyze(m,tx,tr,readout,{},False)
             result.update(analysis_version=6,reference_type=reference_type,transform=transform,measurement_settings=dict(limit=budget,epsilon=.03,estimator='bcan-1'),step=step,x=a,reference=None if reference_type=='zero' else b,labels=[int(d['test_y'][a]),None if reference_type=='zero' else int(d['test_y'][b])])
             result['projection_diagnostics']={side:{dim:dict(entry[idx].get('heldout',{}),status=entry[idx].get('quality',entry[idx]['status'])) for dim,entry in result['euclidean']['dimensions'].items()} for idx,side in enumerate(['s','c'])}
+            result['fit_settings']=dict(euclidean_max_iterations=fit_steps,diagnostic_dimensions=sensitivity,lorentz=payload.get('hyperbolic'),version='metric-fit-4')
             result['context']=dict(experiment=r['id'],checkpoint=step,x=a,reference_type=reference_type,reference=result['reference'],readout=readout,gates=gates,transform=transform,metric=result['metric'],representation=payload.get('hyperbolic'),analysis_version=6)
             if payload.get('hyperbolic'):
                 from .core.hyperbolic import compute,numerical_validity
-                options=payload['hyperbolic'];k=float(options.get('curvature',1));steps=int(options.get('steps',150))
-                if not .01<=k<=4 or not 25<=steps<=500:raise ValueError('Curvature magnitude must be .01..4 and fit steps 25..500')
-                st.progress(root,j['id'],'Fitting 3-D Lorentz representation')
+                options=payload['hyperbolic'];k=float(options.get('curvature',1));steps=iterations(options.get('steps',150))
+                if not .01<=k<=4:raise ValueError('Curvature magnitude must be .01..4')
+                st.progress(root,j['id'],'Fitting Lorentz dimensions '+', '.join(map(str,[3]+sensitivity)))
                 try:
                     result['hyperbolic']=compute(result,k,steps,design,distances,sensitivity)
                 except FloatingPointError as error:

@@ -114,3 +114,12 @@ the near-coincident Lorentz gradient, rejects numerically invalid hyperbolic
 coordinates, preserves Euclidean results on hyperbolic failure, evaluates
 neighborhoods across all sampled layers, and labels spectral-preview diagnostics
 separately. Analysis cache version 6 requires reanalysis, not retraining.
+
+## Version 0.6.0 healthcare investigation
+
+Existing PneumoniaMNIST and synthetic binary experiments now link to a Healthcare
+Investigation page for case/reference analysis, exact signed input contributions,
+complete-path divergence, hidden-layer concentration, intervention controls,
+transformation playback and cohort predictive/intrinsic evidence. Supports both
+MLP and CNN saved checkpoints, with JSON/CSV/PNG export and persistent analysis
+history. See [docs/HEALTHCARE_06.md](docs/HEALTHCARE_06.md) for definitions and limits.

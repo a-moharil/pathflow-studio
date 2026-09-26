@@ -187,3 +187,19 @@ def metric_matrix(jid):
     nodes=np.arange(n) if full else np.unique(np.linspace(0,n-1,min(64,n),dtype=int))
     matrix=dijkstra(metric_graph(data,side),directed=False,indices=nodes)[:,nodes]/data['metric']['display_reference']['unit']
     return jsonify(kind='full_intrinsic_matrix' if full else 'sampled_intrinsic_submatrix',node_ids=nodes.tolist(),node_labels=[data['nodes'][i]['label'] for i in nodes],unit=data['metric']['display_reference'],side=side,distances=matrix.tolist(),context=data.get('context'))
+
+
+@web.get('/healthcare/<rid>')
+def healthcare_page(rid):
+    run=st.run(root(),rid)
+    if run['config']['dataset'] not in ['pneumonia','synthetic']:raise ValueError('Healthcare page currently supports binary PneumoniaMNIST and synthetic validation experiments')
+    return render_template('healthcare.html',run=run)
+
+@web.post('/api/run/<rid>/healthcare')
+def healthcare_submit(rid):
+    run=st.run(root(),rid)
+    if run['config']['dataset'] not in ['pneumonia','synthetic']:raise ValueError('Select a binary healthcare experiment')
+    p=dict(request.json or {})
+    if p.get('kind') not in ['healthcare_case','healthcare_dose','healthcare_cohort']:raise ValueError('Invalid healthcare job')
+    p['healthcare_version']=1
+    return jsonify(id=st.queue_measurement(root(),rid,p))

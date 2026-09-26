@@ -18,6 +18,9 @@ def validate_gates(m,gates):
 
 def process_job(root,j):
     payload=json.loads(j['payload']);r=st.run(root,j['run']);c=r['config'];kind=payload.get('kind','analysis')
+    if kind.startswith('healthcare_'):
+        from .healthcare_jobs import process
+        return process(root,j)
     if kind=='download':
         d=load(root,c,True);result={split:int(len(d[split+'_y'])) for split in ['train','val','test']}
     else:

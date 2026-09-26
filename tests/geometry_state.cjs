@@ -22,3 +22,6 @@ vm.runInThisContext(script.slice(script.indexOf('// Keep the task controls')));
 for(let i=0;i<3;i++){window.activateStudioSection('Geometry');window.activateStudioSection('Fields');assert.equal(controls.geometry.hidden,false);assert.equal(controls.fieldsWorkspace.hidden,false);window.activateStudioSection('Training')}
 assert.equal(fits,0);assert.equal(resizes,3);
 console.log('Camera state, hidden resize, explicit autofit, anchor, and tab navigation passed.');
+
+const independent={positions:[[[8,9,10],[0,0,0]],[[8,9,10],[0,0,0]]],euclidean:{dimensions:{'2':[{positions:[[1,2],[0,0]]},{positions:[[1,2],[0,0]]}],'3':[{positions:[[8,9,10],[0,0,0]]},{positions:[[8,9,10],[0,0,0]]}]}},nodes:[{},{}],edges:[]};
+v.data=independent;$('dimension0').value='2';assert.deepEqual(v.positions(false,false)[0],[1,2,0]);$('yaw0').value='2';$('pitch0').value='1';assert.deepEqual(v.positions(false,false)[0],[1,2,0]);console.log('Independent 2-D coordinates are invariant to 3-D camera rotation.');

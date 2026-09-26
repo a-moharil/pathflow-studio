@@ -1,3 +1,5 @@
+> Historical 0.5.0 implementation record. The fitting and diagnostic sections are superseded by METRIC_FIDELITY_04.md in 0.5.1.
+
 # Representation and investigation update · 0.5.0
 
 ## Scientific state

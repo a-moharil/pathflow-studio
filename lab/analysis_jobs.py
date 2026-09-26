@@ -59,39 +59,74 @@ def process_job(root,j):
             result['metric']['display_reference']=reference
             import hashlib
             from scipy.linalg import orthogonal_procrustes
-            frame_path=Path(root)/r['id']/('frame_'+hashlib.sha256(unit_key.encode()).hexdigest()[:16]+'.npz')
-            pos=np.asarray(result['positions'])
-            if frame_path.exists():
-                with np.load(frame_path) as frame:base=frame['structural']
-                centre=pos[0].mean(0);target=base.mean(0);R,_=orthogonal_procrustes(pos[0]-centre,base-target)
-                result['positions']=((pos-centre)@R+target).tolist()
-            else:np.savez(frame_path,structural=pos[0])
+            from .core.metricfit import refine,deformation
+            fit_steps=int(payload.get('embedding_steps',120));sensitivity=bool(payload.get('dimension_sensitivity',False))
+            if not 25<=fit_steps<=1000:raise ValueError('Embedding iterations must be 25..1000')
+            st.progress(root,j['id'],'Fitting independent Euclidean 2-D and 3-D metrics')
+            for side in ['structural_geometry','conditional_geometry']:
+                result[side]['embedding_diagnostic_role']='Initial spectral preview only; displayed coordinates use euclidean.dimensions and projection_diagnostics'
+            design,distances=refine(result,fit_steps,sensitivity)
+            for dim,entries in result['euclidean']['dimensions'].items():
+                frame_path=Path(root)/r['id']/('metric3_e'+dim+'_'+hashlib.sha256(unit_key.encode()).hexdigest()[:16]+'.npz')
+                structural=np.asarray(entries[0]['positions']);centre=structural.mean(0)
+                if frame_path.exists():
+                    with np.load(frame_path) as frame:base=frame['structural']
+                    target=base.mean(0);rotation,_=orthogonal_procrustes(structural-centre,base-target)
+                    for entry in entries:
+                        if entry['status']=='available':entry['positions']=((np.asarray(entry['positions'])-centre)@rotation+target).tolist()
+                else:np.savez(frame_path,structural=structural)
+            result['positions']=[entry.get('positions',result['euclidean']['dimensions']['3'][0]['positions']) for entry in result['euclidean']['dimensions']['3']]
             if gates:result['native']=analyze(m,tx,tr,readout,{},False)
-            result.update(analysis_version=4,reference_type=reference_type,transform=transform,measurement_settings=dict(limit=budget,epsilon=.03,estimator='bcan-1'),step=step,x=a,reference=None if reference_type=='zero' else b,labels=[int(d['test_y'][a]),None if reference_type=='zero' else int(d['test_y'][b])])
-            from .core.hyperbolic import euclidean_diagnostics
-            result['projection_diagnostics']=euclidean_diagnostics(result)
-            result['context']=dict(experiment=r['id'],checkpoint=step,x=a,reference_type=reference_type,reference=result['reference'],readout=readout,gates=gates,transform=transform,metric=result['metric'],representation=payload.get('hyperbolic'),analysis_version=4)
+            result.update(analysis_version=6,reference_type=reference_type,transform=transform,measurement_settings=dict(limit=budget,epsilon=.03,estimator='bcan-1'),step=step,x=a,reference=None if reference_type=='zero' else b,labels=[int(d['test_y'][a]),None if reference_type=='zero' else int(d['test_y'][b])])
+            result['projection_diagnostics']={side:{dim:dict(entry[idx].get('heldout',{}),status=entry[idx].get('quality',entry[idx]['status'])) for dim,entry in result['euclidean']['dimensions'].items()} for idx,side in enumerate(['s','c'])}
+            result['context']=dict(experiment=r['id'],checkpoint=step,x=a,reference_type=reference_type,reference=result['reference'],readout=readout,gates=gates,transform=transform,metric=result['metric'],representation=payload.get('hyperbolic'),analysis_version=6)
             if payload.get('hyperbolic'):
-                from .core.hyperbolic import compute
+                from .core.hyperbolic import compute,numerical_validity
                 options=payload['hyperbolic'];k=float(options.get('curvature',1));steps=int(options.get('steps',150))
                 if not .01<=k<=4 or not 25<=steps<=500:raise ValueError('Curvature magnitude must be .01..4 and fit steps 25..500')
                 st.progress(root,j['id'],'Fitting 3-D Lorentz representation')
-                result['hyperbolic']=compute(result,k,steps)
+                try:
+                    result['hyperbolic']=compute(result,k,steps,design,distances,sensitivity)
+                except FloatingPointError as error:
+                    result['hyperbolic']=dict(status='numerical_invalid',reason=str(error),dimensions={})
+                if result['hyperbolic']['status']!='available':
+                    for evidence in result['distance_evidence']['sides'].values():evidence.pop('hyperbolic',None)
                 if result['hyperbolic']['status']=='available':
                     from .core.hyperbolic import ball,move_origin
                     import math
-                    hp=Path(root)/r['id']/('hyper_frame_'+hashlib.sha256((unit_key+str(k)).encode()).hexdigest()[:16]+'.npz')
+                    hp=Path(root)/r['id']/('metric3_hyper_frame_'+hashlib.sha256((unit_key+str(k)).encode()).hexdigest()[:16]+'.npz')
                     entries=result['hyperbolic']['dimensions']['3'];struct=np.asarray(entries[0]['lorentz'])
                     if hp.exists():
                         with np.load(hp) as frame:target=frame['structural']
                         rotation,_=orthogonal_procrustes(struct[:,1:],target[:,1:])
                         for entry in entries:
                             if entry['status']!='available':continue
-                            z=np.asarray(entry['lorentz']);z[:,1:]=z[:,1:]@rotation
+                            z=np.asarray(entry['lorentz']);before=z.copy();z[:,1:]=z[:,1:]@rotation
                             free_anchor=np.array([math.cosh(.4),-math.sinh(.4),0,0])/math.sqrt(k)
-                            entry.update(lorentz=z.tolist(),ball=ball(z,k).tolist(),ball_free=ball(move_origin(z,free_anchor,k),k).tolist())
+                            free=move_origin(z,free_anchor,k)
+                            check=numerical_validity(z,k,free=free,before=before,pairs=design['train'])
+                            if not check['valid']:
+                                result['hyperbolic']=dict(status='numerical_invalid',reason=check['reason'],numerical_validation=check,dimensions={})
+                                for evidence in result['distance_evidence']['sides'].values():evidence.pop('hyperbolic',None)
+                                break
+                            entry.update(lorentz=z.tolist(),ball=ball(z,k).tolist(),ball_free=ball(free,k).tolist(),numerical_validation=check)
                     else:np.savez(hp,structural=struct)
                     result['hyperbolic']['temporal_alignment']='Common spatial rotation toward first structural fit for this readout and curvature, after sink boost; no rescaling'
+            temporal_key=json.dumps(dict(x=a,reference_type=reference_type,reference=result['reference'],readout=readout,gates=gates,transform=transform,unit=reference['unit'],hyperbolic=payload.get('hyperbolic'),embedding_steps=fit_steps,dimension_sensitivity=sensitivity),sort_keys=True)
+            temporal_path=Path(root)/r['id']/('metric3_probe_'+hashlib.sha256(temporal_key.encode()).hexdigest()[:16]+'.json')
+            evidence=result['distance_evidence'];result['temporal_deformation']={}
+            if temporal_path.exists():
+                previous=json.loads(temporal_path.read_text())
+                if previous['evidence']['pairs']==evidence['pairs']:
+                    for side,current in evidence['sides'].items():
+                        before=previous['evidence']['sides'].get(side)
+                        if before is None:continue
+                        for space in ['euclidean','hyperbolic']:
+                            for dim,pred in current.get(space,{}).items():
+                                old=before.get(space,{}).get(dim)
+                                if old is not None:result['temporal_deformation'][side+'_'+space+'_'+dim]=dict(reference_checkpoint=previous['step'],current_checkpoint=step,**deformation(before['intrinsic'],current['intrinsic'],old,pred))
+            else:st.atomic_json(temporal_path,dict(step=step,evidence=evidence))
+            result['embedding_settings']=dict(version='metric-fit-3',steps=fit_steps,dimension_sensitivity=sensitivity)
             if kind=='dose':
                 result['dose_response']=[]
                 for alpha in [0.,.25,.5,.75,1.]:
@@ -102,6 +137,6 @@ def process_job(root,j):
     with st.db(root) as db:
         db.execute("UPDATE jobs SET status='completed',result=? WHERE id=?",(str(path),j['id']))
         if kind in ['analysis','dose']:
-            summary={k:v for k,v in result.items() if k not in ['nodes','edges','positions','input_fields','hyperbolic','investigation']}
+            summary={k:v for k,v in result.items() if k not in ['nodes','edges','positions','input_fields','hyperbolic','investigation','euclidean','distance_evidence']}
             db.execute('INSERT OR REPLACE INTO observations VALUES(?,?,?,?)',(j['id'],r['id'],result['step'],json.dumps(summary)))
 

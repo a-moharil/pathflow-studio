@@ -1,3 +1,53 @@
+# Current validation · 0.5.1 (2026-09-26)
+
+This release passed the inherited 32 tests and six new metric-fitting / matrix
+export tests, 38 in total (37-test full-suite run plus the new matrix test in the
+six-test focused suite). The checks cover all-node fitting coverage, disjoint
+pair sets, reproducibility, recovery of known Euclidean and hyperbolic distances,
+independent 2-D/3-D/8-D tables, identical-state preservation, deformation errors,
+unchanged metric inputs, and exact/budgeted intrinsic matrix export.
+
+Three Chromium workflows passed with no JavaScript exceptions:
+
+- The deep-MLP training/pause, full carrier, field, intervention and Observatory smoke test.
+- Existing-run measurement settings/backfill and deletion integration.
+- Hyperbolic/Euclidean geometry, automatic checkpoint selection, nonempty temporal
+  deformation diagnostics, fidelity table, intrinsic submatrix, anchors, labels,
+  orbit, zero reference, transform sweep, checkpoint playback, video download,
+  and stale-response protection.
+
+Direct Node tests passed for independent 2-D coordinates unaffected by 3-D yaw/pitch,
+camera persistence, complete rendering of 79,490 edges including zero-mass carriers,
+all-node labels, and Observatory contexts. The 100 independently enumerated
+path-field checks also passed. The rendered fidelity table/scatter was inspected.
+
+## Observed approximation quality, not an acceptance claim
+
+A synthetic 790-node MLP checkpoint under the short 25-iteration browser budget
+had minimum training-pair degree 22 and zero unconstrained nodes. On identical
+diagnostic pairs, conditional Euclidean 3-D stress decreased from about 0.885
+(spectral initialization) to 0.359 (refinement). Structural Euclidean 3-D changed
+from 0.447 to 0.324. Hyperbolic 3-D stress was approximately 0.323 structural and
+0.432 conditional. Those remain high-distortion representations and are flagged.
+This example does not establish hyperbolic superiority or broad model performance.
+
+Saved analyses at updates 0 and 1 had different independent 2-D and 3-D coordinates
+for both measures. Temporal distance-deformation diagnostics were present. Coordinate
+change alone is not proof that every visible movement is intrinsic; that is why
+metric-change errors accompany the display.
+
+Runtime: Linux / Python 3.12, CPU torch 2.6.0, torchvision 0.21.0, NumPy 2.3.5,
+SciPy 1.17.0, Playwright 1.51.0 Chromium. Existing application requirements are
+unchanged; the exact older pinned NumPy/SciPy environment was not recreated.
+Synthetic MLP/CNN numerical tests were run; new browser coverage is synthetic MLP.
+No FashionMNIST/PneumoniaMNIST download rerun, CUDA test, or maximum-size fitting
+benchmark is claimed. The 8-D diagnostic is exercised numerically on a small graph.
+
+See METRIC_FIDELITY_04.md for objectives, sampling scope, numerical bounds, and
+limitations. Sections below are historical validation records.
+
+---
+
 # Current validation · 0.5.0 (2026-09-25)
 
 The results below apply to this package. Older results retained later in this

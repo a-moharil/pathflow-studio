@@ -101,3 +101,16 @@ Bootstrap now attempts Python's ensurepip if the selected virtual environment la
 ## Version 0.5.0 representation update
 
 See [docs/REPRESENTATION_03.md](docs/REPRESENTATION_03.md) for Lorentz H3, zero-reference and affine field investigations, state/provenance, limits, and playback. Existing setup and working interpreter are retained.
+
+
+## Version 0.5.1 metric fidelity correction
+
+Read [docs/METRIC_FIDELITY_04.md](docs/METRIC_FIDELITY_04.md) for independent Euclidean fits, fully constrained Lorentz fitting, comparable diagnostics, intrinsic matrix inspection and automatic checkpoint selection. Previous embeddings are recomputed; saved training checkpoints remain usable.
+
+## Version 0.5.2 integrity augmentation
+
+See [docs/METRIC_INTEGRITY_05.md](docs/METRIC_INTEGRITY_05.md). This release fixes
+the near-coincident Lorentz gradient, rejects numerically invalid hyperbolic
+coordinates, preserves Euclidean results on hyperbolic failure, evaluates
+neighborhoods across all sampled layers, and labels spectral-preview diagnostics
+separately. Analysis cache version 6 requires reanalysis, not retraining.

@@ -170,3 +170,20 @@ def cancel_analysis(jid):
         if row is None:abort(404)
         changed=db.execute("UPDATE jobs SET status='cancelled',progress='Cancelled by user' WHERE id=? AND status='queued'",(jid,)).rowcount
     return jsonify(cancelled=bool(changed),status=row['status'])
+
+@web.get('/api/job/<jid>/metric-matrix')
+def metric_matrix(jid):
+    """An explicitly requested intrinsic distance matrix, independent of embedding."""
+    import numpy as np
+    from scipy.sparse.csgraph import dijkstra
+    from .core.hyperbolic import metric_graph
+    with st.db(root()) as db:row=db.execute('SELECT * FROM jobs WHERE id=?',(jid,)).fetchone()
+    if not row or row['status']!='completed':raise ValueError('Choose a completed geometry analysis')
+    data=json.loads(Path(row['result']).read_text());side=request.args.get('side','s')
+    if side not in ['s','c']:raise ValueError('Invalid measure')
+    if side=='c' and not data['conditional']['defined']:raise ValueError('Conditional measure undefined')
+    n=len(data['nodes']);full=request.args.get('full')=='1'
+    if full and n>min(4000,int(data.get('measurement_settings',{}).get('limit',2500))):raise ValueError('Full matrix exceeds this analysis measurement budget; request the labelled sampled submatrix instead')
+    nodes=np.arange(n) if full else np.unique(np.linspace(0,n-1,min(64,n),dtype=int))
+    matrix=dijkstra(metric_graph(data,side),directed=False,indices=nodes)[:,nodes]/data['metric']['display_reference']['unit']
+    return jsonify(kind='full_intrinsic_matrix' if full else 'sampled_intrinsic_submatrix',node_ids=nodes.tolist(),node_labels=[data['nodes'][i]['label'] for i in nodes],unit=data['metric']['display_reference'],side=side,distances=matrix.tolist(),context=data.get('context'))

@@ -22,11 +22,21 @@ try:
   browser=w.chromium.launch(headless=True);page=browser.new_page(viewport={'width':1440,'height':1000});errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
   page.goto('http://127.0.0.1:5090/experiment/'+rid)
   page.locator('.sectionTabs button').filter(has_text='Geometry').click()
-  page.locator('#fitHyperbolic').check();page.locator('#hyperSteps').fill('25');page.locator('#measurementBudget').fill('50');page.locator('#analyze').click()
+  page.locator('#embeddingSteps').fill('25');page.locator('#fitHyperbolic').check();page.locator('#hyperSteps').fill('25');page.locator('#measurementBudget').fill('50');page.locator('#analyze').click()
   page.wait_for_function("typeof analysis!=='undefined' && analysis?.hyperbolic?.status==='available'",timeout=120000)
   for k in [0,1]:page.locator('#representation'+str(k)).select_option('hyperbolic')
   page.wait_for_timeout(1200)
   assert page.evaluate("views[0].hyper() && views[1].hyper()")
+  assert page.evaluate("analysis.euclidean.pairs.unconstrained_nodes===0 && analysis.hyperbolic.minimum_training_degree>=4")
+  assert page.locator('#fidelityTable tr').count()>=7
+  page.locator('#inspectMatrix').click();page.wait_for_function("!document.getElementById('matrixPlot').hidden")
+  assert page.locator('#matrixStatus').inner_text().startswith('sampled_intrinsic_submatrix')
+  old_geometry=page.evaluate('JSON.stringify(analysis.euclidean.dimensions)');previous=page.evaluate('analysis.step');target='0' if previous else '1'
+  page.locator('#checkpoint').select_option(target)
+  page.wait_for_function('(step)=>analysis?.step===step',arg=int(target),timeout=120000)
+  assert page.evaluate("Object.keys(analysis.temporal_deformation).length>0")
+  assert page.evaluate('JSON.stringify(analysis.euclidean.dimensions)')!=old_geometry
+  page.locator('#fidelityTable').scroll_into_view_if_needed();page.screenshot(path=str(root/'fidelity.png'))
   page.locator('#anchor1').uncheck();page.wait_for_timeout(400)
   assert 'held-out stress' in page.locator('#hyperStatus1').inner_text()
   page.locator('summary').filter(has_text='Hyperbolic fidelity').click()

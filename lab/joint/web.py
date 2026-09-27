@@ -18,7 +18,17 @@ def registry():
     datasets=[]
     for p in (Path(root())/'joint_data').glob('*/manifest.json'):
         d=json.loads(p.read_text());datasets.append(dict(key=p.parent.name,name=d['name'],samples=len(d['rows']),patients=len({r['patient'] for r in d['rows']}),citation=d.get('citation'),label_rule=d.get('label_rule')))
-    return jsonify(runs=[engine.get(root(),r) for r in ids],datasets=datasets)
+    prepared={d['key']:d for d in datasets}
+    catalog=[]
+    for key,name in [('bus-uclm-v1','BUS-UCLM v1 · ultrasound, masks and classes'),('synthetic','Synthetic joint-task engineering check')]:
+        catalog.append(dict(key=key,name=name,ready=key in prepared,**{k:v for k,v in prepared.get(key,{}).items() if k not in ['key','name']}))
+    catalog.extend(dict(d,ready=True) for d in datasets if d['key'] not in ['bus-uclm-v1','synthetic'])
+    runs=[engine.get(root(),r) for r in ids]
+    with st.db(root()) as db:
+        for r in runs:
+            r['analysis_count']=db.execute("SELECT count(*) FROM jobs WHERE run=? AND status='completed'",(r['id'],)).fetchone()[0]
+            r['pending_measurements']=db.execute("SELECT count(*) FROM jobs WHERE run=? AND status IN ('queued','running')",(r['id'],)).fetchone()[0]
+    return jsonify(runs=runs,datasets=datasets,dataset_catalog=catalog)
 @web.post('/api/joint/data')
 def prepare():
     d=request.get_json();action=d.get('action','download')

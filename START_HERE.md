@@ -1,3 +1,7 @@
+# Pathflow Studio 0.9.1
+
+This update fixes dataset/architecture discovery and adds explicit ResNet presets. See `docs/SELECTION_FIX_11.md`. Select BUS-UCLM or ResNet-50 from **Design experiment**, or open **Joint healthcare** directly. Datasets remain visible before download.
+
 # Start with Pathflow Studio 0.9.0
 
 From this project directory, run `bash setup_local.sh`, then `PORT=5001 .venv-pathflow/bin/python run.py`. Use that same interpreter in your IDE. Run `.venv-pathflow/bin/python doctor.py` to check imports. For the new architecture choose **Joint healthcare**. Read `docs/JOINT_TASK_10.md` for the experimental conventions, dataset import and explicit geometry limits. Existing MLP/CNN experiments remain on their original pages.

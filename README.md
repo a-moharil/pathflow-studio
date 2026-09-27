@@ -1,3 +1,7 @@
+# Pathflow Studio 0.9.1
+
+This update fixes dataset/architecture discovery and adds explicit ResNet presets. See `docs/SELECTION_FIX_11.md`. Select BUS-UCLM or ResNet-50 from **Design experiment**, or open **Joint healthcare** directly. Datasets remain visible before download.
+
 # Pathflow Studio 0.9.0
 
 New: the **Joint healthcare** page adds ResNet-50 segmentation + classification and an exact finite-contrast tensor DAG. See [docs/JOINT_TASK_10.md](docs/JOINT_TASK_10.md) for conventions, dataset import and scope limits, and [docs/VALIDATION_10.md](docs/VALIDATION_10.md) for executed validation. Existing MLP/CNN workflows remain available.

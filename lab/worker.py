@@ -9,6 +9,8 @@ from .engine import quantum
 from .analysis_jobs import process_job
 
 def tick(root):
+    from .joint.engine import tick as joint_control
+    if joint_control(root,controls_only=True):return True
     with st.db(root) as db:deleting=db.execute("SELECT id FROM runs WHERE request='delete' ORDER BY created LIMIT 1").fetchone()
     if deleting:
         try:st.delete_run(root,deleting[0])
@@ -29,7 +31,10 @@ def tick(root):
     if j:
         try:
             p=json.loads(j['payload'])
-            if p['kind']=='prepare':
+            if p['kind'].startswith('joint_'):
+                from .joint.jobs import process as joint_process
+                joint_process(root,dict(j))
+            elif p['kind']=='prepare':
                 result=prepare(root,p['config'],lambda msg:st.progress(root,j['id'],msg))
                 folder=Path(root)/'dataset_jobs';folder.mkdir(exist_ok=True);path=folder/(j['id']+'.json');st.atomic_json(path,result)
                 with st.db(root) as db:db.execute("UPDATE jobs SET status='completed',result=?,progress='Ready' WHERE id=?",(str(path),j['id']))
@@ -37,6 +42,8 @@ def tick(root):
         except Exception:
             with st.db(root) as db:db.execute("UPDATE jobs SET status='failed',error=? WHERE id=?",(traceback.format_exc(),j['id']))
         return True
+    from .joint.engine import tick as joint_tick
+    if joint_tick(root):return True
     with st.db(root) as db:r=db.execute("SELECT id FROM runs WHERE status='training' ORDER BY created LIMIT 1").fetchone()
     if r:
         try:quantum(root,st.run(root,r[0]))
@@ -46,13 +53,17 @@ def tick(root):
     return False
 
 def main(root,parent=False):
-    root=Path(root);st.init(root);torch.set_num_threads(max(1,min(4,os.cpu_count() or 1)));stop=threading.Event()
+    root=Path(root);st.init(root)
+    from .joint.engine import init as joint_init
+    joint_init(root)
+    torch.set_num_threads(max(1,min(4,os.cpu_count() or 1)));stop=threading.Event()
     if parent:
         def watch():sys.stdin.buffer.read();stop.set()
         threading.Thread(target=watch,daemon=True).start()
     with FileLock(str(root/'worker.lock'),timeout=0):
         with st.db(root) as db:
             db.execute("UPDATE jobs SET status='queued' WHERE status='running'")
+            db.execute("UPDATE joint_runs SET status='paused',request='' WHERE request<>'delete' AND (status='training' OR request<>'')")
             # A restart never unexpectedly restarts an experiment.
             db.execute("UPDATE runs SET status='paused',request='' WHERE request<>'delete' AND status IN ('training','saving','pause_requested','stop_requested')")
             db.execute("UPDATE runs SET status='delete_requested' WHERE request='delete'")

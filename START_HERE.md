@@ -1,3 +1,9 @@
+# Start with Pathflow Studio 0.9.0
+
+From this project directory, run `bash setup_local.sh`, then `PORT=5001 .venv-pathflow/bin/python run.py`. Use that same interpreter in your IDE. Run `.venv-pathflow/bin/python doctor.py` to check imports. For the new architecture choose **Joint healthcare**. Read `docs/JOINT_TASK_10.md` for the experimental conventions, dataset import and explicit geometry limits. Existing MLP/CNN experiments remain on their original pages.
+
+## Earlier installation notes
+
 # Pathflow Studio 0.4.0
 
 ## Updating your current installation

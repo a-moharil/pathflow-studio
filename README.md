@@ -1,3 +1,7 @@
+# Pathflow Studio 0.9.0
+
+New: the **Joint healthcare** page adds ResNet-50 segmentation + classification and an exact finite-contrast tensor DAG. See [docs/JOINT_TASK_10.md](docs/JOINT_TASK_10.md) for conventions, dataset import and scope limits, and [docs/VALIDATION_10.md](docs/VALIDATION_10.md) for executed validation. Existing MLP/CNN workflows remain available.
+
 # Pathflow Studio 0.8.0
 
 Visual evidence now has visual channel/connection selection, Grad-CAM, signed path and region diagnostics, and contrast/cancellation demonstrations. Start at Healthcare investigation → Visual evidence. Read `docs/VISUAL_INVESTIGATION_09.md` for the complete scientific and interaction guide. Existing training, geometry, healthcare and Evidence 08 workflows are retained.

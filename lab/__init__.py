@@ -24,4 +24,8 @@ def create_app(root=None):
         return {'studio_version':(Path(__file__).resolve().parents[1]/'VERSION').read_text().strip()}
     from .web import web
     app.register_blueprint(web)
+    from .joint import engine as joint_engine
+    from .joint.web import web as joint_web
+    joint_engine.init(root)
+    app.register_blueprint(joint_web)
     return app

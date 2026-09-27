@@ -9,7 +9,7 @@ from .pathmath import graph, measure
 from .healthcare import case_analysis
 from .transforms import image, specification, transport, hellinger
 
-VERSION = 'evidence-1'
+VERSION = 'evidence-2'
 
 
 def tensor(x): return torch.as_tensor(np.asarray(x)[None], dtype=torch.float64)
@@ -26,11 +26,13 @@ def state(model, x, reference, readout):
     for l, (z,b) in enumerate(zip(zs,z0)):
         a=z.numpy().ravel();b=b.numpy().ravel()
         derivative=np.ones_like(a) if l==len(zs)-1 else ((a>0).astype(float) if model.config['activation']=='relu' else 1-np.tanh(a)**2)
+        
+        for idx,alpha in getattr(model,'gates',{}).get(str(l),{}).items():derivative[int(idx)]*=alpha
         sec.append(np.divide(hs[l+1].numpy().ravel()-h0[l+1].numpy().ravel(),a-b,out=derivative,where=a!=b))
     sec.append(np.ones(1));dx=(np.asarray(x,float)-reference).ravel()
     sm,fs=measure(sizes,layers,np.ones(sizes[0]),[np.ones(n) for n in sizes[1:]])
     cm,fc=measure(sizes,layers,dx*dx,sec)
-    return dict(sizes=sizes,offsets=offsets,layers=layers,structural=sm,conditional=cm,fs=fs,fc=fc)
+    return dict(sizes=sizes,offsets=offsets,layers=layers,sec=sec,dx=dx,structural=sm,conditional=cm,fs=fs,fc=fc)
 
 
 def identities(model, l, layer_graph):

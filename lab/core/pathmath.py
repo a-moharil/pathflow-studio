@@ -159,8 +159,9 @@ def analyze(model,x,x0,readout,gates=None,geometry_enabled=True):
         if l==len(zs)-1:s=np.ones_like(a)
         else:
             derivative=(a>0).astype(float) if model.config['activation']=='relu' else 1-np.tanh(a)**2
-            if gates and str(l) in gates:
-                for idx,alpha in gates[str(l)].items():derivative[int(idx)]*=alpha
+            effective_gates=getattr(model,'gates',{}) if gates is None else gates
+            if effective_gates and str(l) in effective_gates:
+                for idx,alpha in effective_gates[str(l)].items():derivative[int(idx)]*=alpha
             s=np.divide(dh,dz,out=derivative,where=dz!=0)
         sec.append(s)
     sec.append(np.ones(1));dx=(x.astype(float)-x0.astype(float)).ravel();s,Fs=measure(sizes,layers,np.ones(sizes[0]),[np.ones(n) for n in sizes[1:]]);c,Fc=measure(sizes,layers,dx*dx,sec)

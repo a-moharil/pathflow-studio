@@ -45,7 +45,7 @@ def process(root,job):
         report['evidence']=evidence_run(model,original,reference,readout,p,lambda message:st.progress(root,job['id'],message),X)
         report['labels']=[int(Y[x]),None if reference_type=='zero' else int(Y[r])]
         for case in report['evidence'].get('cases',[]):case.update(label=int(Y[case['index']]),source_index=int(ids[case['index']]))
-        report['context'].update(evidence_version='evidence-1',transform=specification(),evidence_settings=p)
+        report['context'].update(evidence_version='evidence-2',transform=specification(),evidence_settings=p)
         path=Path(root)/run['id']/f"healthcare_{job['id']}.json";st.atomic_json(path,report)
         with st.db(root) as db:db.execute("UPDATE jobs SET status='completed',result=?,progress='Visual evidence ready' WHERE id=?",(str(path),job['id']))
         return

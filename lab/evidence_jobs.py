@@ -5,23 +5,29 @@ from .core.evidence import (state,attributions,select_support,field_b,Occurrence
 from .core.healthcare import case_analysis
 from .core.transforms import specification,image,transport,hellinger
 from scipy.sparse.csgraph import dijkstra
+from .core.inspector import signed_diagnostics, channel_catalog, connection_catalog, ChannelModel
 
 
 def summary(case):
-    return dict(delta=case['delta'],margin=case['margin'],probability=case['probabilities'][1],eta1=case['conditional']['eta1'],eta2=case['conditional']['eta2'],H1=case['conditional']['H1'],Sdef=case['conditional']['Sdef'],logZ=case['conditional']['logZ'],cancellation=case['cancellation'],path_hellinger=case['path_hellinger'],reconstruction_residual=case['residual'],signed_residual=case['signed_field_residual'])
+    return dict(reference_margin=case['reference_margin'],reference_probability=case['reference_probabilities'][1],delta=case['delta'],margin=case['margin'],probability=case['probabilities'][1],eta1=case['conditional']['eta1'],eta2=case['conditional']['eta2'],H1=case['conditional']['H1'],Sdef=case['conditional']['Sdef'],logZ=case['conditional']['logZ'],cancellation=case['cancellation'],path_hellinger=case['path_hellinger'],reconstruction_residual=case['residual'],signed_residual=case['signed_field_residual'])
 
 
 def snapshot(model,x,r,readout,p,include_attr=True):
     st=state(model,x,r,readout);case=case_analysis(model,x,r,readout)
     support=(dict(status='undefined_measure',reason='Conditional measure vanishes; flow-ranked support is undefined',kind=p.get('support_kind','occurrence'),layers=[]) if not st['conditional']['defined'] and p.get('support_rule','flow')=='flow' else select_support(model,st,x,r,readout,p));b=field_b(model,st,support)
     result=dict(image=np.asarray(x).tolist(),reference=np.asarray(r).tolist(),field_a=case['input_fields']['conditional'],structural_a=case['input_fields']['structural'],signed_field=case['signed_field'],field_b=b,support=support,layer_marginals=case['layer_marginals'],**summary(case))
-    if include_attr:result['attribution']=attributions(model,x,r,readout,p.get('ig_steps',64))
+    result['diagnostics']=signed_diagnostics(model,x,r,readout,st)
+    if include_attr:
+        result['attribution']=attributions(model,x,r,readout,p.get('ig_steps',64))
+        result['catalog']=channel_catalog(model,x,r,readout,st)
+        layer=int(p.get('visual_layer',result['catalog']['default_layer']));index=int(p.get('visual_channel',0))
+        result['connections']=connection_catalog(model,st,layer,index) if layer>=0 else dict(status='not_applicable',rows=[])
     return result,st
 
 
 def measure_intervention(model,x,r,readout,st,support,alpha):
     changed=OccurrenceModel(model,st,support,alpha);case=case_analysis(changed,x,r,readout)
-    return dict(alpha=alpha,field_a=case['input_fields']['conditional'],signed_field=case['signed_field'],layer_marginals=case['layer_marginals'],**summary(case))
+    return dict(diagnostics=signed_diagnostics(changed,x,r,readout,state(changed,x,r,readout)),alpha=alpha,field_a=case['input_fields']['conditional'],signed_field=case['signed_field'],layer_marginals=case['layer_marginals'],**summary(case))
 
 
 def difference(a,b):
@@ -31,7 +37,7 @@ def difference(a,b):
 
 def run(model,x,r,readout,p,progress,dataset=None):
     model=model.cpu().double().eval();mode=p.get('evidence_mode','compare')
-    if mode not in ['compare','intervene','rescale','transform','neighborhood','cases']:raise ValueError('Unknown visual evidence mode')
+    if mode not in ['compare','intervene','rescale','transform','neighborhood','cases','reverse','demo']:raise ValueError('Unknown visual evidence mode')
     progress('Computing attribution and baseline computational fields')
     base,st=snapshot(model,x,r,readout,p)
     result=dict(version=VERSION,mode=mode,settings=p,baseline=base,readout=readout,notes='Field B is baseline mass on selected convolution support, not signed attribution or a post-intervention field. Input attribution uses the same scalar readout; IG uses the same reference.')
@@ -63,6 +69,23 @@ def run(model,x,r,readout,p,progress,dataset=None):
                     frames.append(measure_intervention(model,x,r,readout,st,support,alpha))
                 curves.append(dict(name=name,support=support,field_b=field_b(model,st,support),frames=frames))
             result['policy']='Same multiplicative edge factor for x and reference, applied before activation. Frozen support per curve. Controls match selected identity count per layer; parameter controls can affect different occurrence counts, which are reported. Intervention weights enter the counterfactual path calculation; baseline Field B stays fixed.'
+        elif intervention=='channel':
+            layer=int(p.get('visual_layer',base['catalog']['default_layer']));index=int(p.get('visual_channel',0))
+            # One channel/unit per support; controls retain the same layer and cardinality.
+            count=model.shapes[layer+1][0] if 0<=layer<len(model.layers)-1 else 0
+            if not 0<=index<count:raise ValueError('Select a valid hidden channel/unit')
+            rng=np.random.default_rng(909);controls=rng.choice(count,min(3,count),replace=False)
+            selections=[('Selected channel/unit',index)]+[(f'Random channel/unit {j+1}',int(k)) for j,k in enumerate(controls)]
+            for name,k in selections:
+                frames=[]
+                for alpha in alphas:
+                    progress(f'{name}: attenuation {alpha}')
+                    changed=ChannelModel(model,layer,k,alpha);case=case_analysis(changed,x,r,readout)
+                    ds=signed_diagnostics(changed,x,r,readout,state(changed,x,r,readout))
+                    frames.append(dict(alpha=alpha,field_a=case['input_fields']['conditional'],signed_field=case['signed_field'],diagnostics=ds,**summary(case)))
+                tile=base['catalog']['layers'][layer]['channels'][k]
+                curves.append(dict(name=name,channel_support=dict(layer=layer,index=k,kind='postactivation channel/unit',baseline_mass=tile['mass']),channel_footprint=tile['occupation'],frames=frames))
+            result['policy']='One postactivation channel/unit, same layer and channel count for random controls. Gates apply to both endpoints. Channel occupation footprint is native node mass, not primitive Field B. Controls may overlap selected channel; this is an exploratory comparison.'
         elif intervention=='pixels':
             k=int(p.get('pixel_budget',32))
             if not 1<=k<=784:raise ValueError('Pixel budget must be 1..784')
@@ -75,7 +98,7 @@ def run(model,x,r,readout,p,progress,dataset=None):
                 for alpha in alphas:
                     progress(f'{name}: pixel attenuation {alpha}')
                     changed=r+(1-mask[None]+alpha*mask[None])*(x-r);case=case_analysis(model,changed,r,readout)
-                    frames.append(dict(alpha=alpha,image=changed.tolist(),field_a=case['input_fields']['conditional'],signed_field=case['signed_field'],**summary(case)))
+                    frames.append(dict(diagnostics=signed_diagnostics(model,changed,r,readout,state(model,changed,r,readout)),alpha=alpha,image=changed.tolist(),field_a=case['input_fields']['conditional'],signed_field=case['signed_field'],**summary(case)))
                 curves.append(dict(name=name,pixel_mask=mask.tolist(),pixel_count=k,frames=frames))
             result['policy']='Equal number of individually ranked pixels, not contiguous regions; x interpolates toward the fixed reference. All rankings and masks are frozen before intervention. Random seed 812. No inference about clinical lesion removal.'
         else:raise ValueError('Invalid evidence intervention')
@@ -93,7 +116,9 @@ def run(model,x,r,readout,p,progress,dataset=None):
             progress(f'Compensated ReLU rescaling {factor:g}')
             m=rescaled(model,layer,index,factor);snap,t=snapshot(m,x,r,readout,p)
             if not reselect:snap['support']=base['support'];snap['field_b']=field_b(m,t,base['support'])
-            snap.update(factor=factor,signal=internal_signal(m,x,readout,layer,index),audit=dict(margin_change=snap['margin']-base['margin'],delta_change=snap['delta']-base['delta'],input_gradient_max_change=difference(snap['attribution']['input_gradient'],base['attribution']['input_gradient']),ig_max_change=difference(snap['attribution']['integrated_gradients'],base['attribution']['integrated_gradients']),field_a_max_change=difference(snap['field_a'],base['field_a']),field_b_max_change=difference(snap['field_b']['image'],base['field_b']['image']),structural_marginal_max_change=max(difference(a,b) for a,b in zip(st['fs'],t['fs'])),conditional_marginal_max_change=max(difference(a,b) for a,b in zip(st['fc'],t['fc'])) if st['conditional']['defined'] else None,structural_source_distance_max_change=difference(baseline_row,dijkstra(metric_graph(t,'fs'),directed=False,indices=0)),conditional_source_distance_max_change=difference(baseline_c,dijkstra(metric_graph(t,'fc'),directed=False,indices=0)) if baseline_c is not None else None))
+            cam_layer=int(p.get('visual_layer',base['catalog']['default_layer']))
+            cam_change=difference(snap['catalog']['layers'][cam_layer]['gradcam'],base['catalog']['layers'][cam_layer]['gradcam']) if cam_layer>=0 else None
+            snap.update(factor=factor,signal=internal_signal(m,x,readout,layer,index),audit=dict(gradcam_max_change=cam_change,margin_change=snap['margin']-base['margin'],delta_change=snap['delta']-base['delta'],input_gradient_max_change=difference(snap['attribution']['input_gradient'],base['attribution']['input_gradient']),ig_max_change=difference(snap['attribution']['integrated_gradients'],base['attribution']['integrated_gradients']),field_a_max_change=difference(snap['field_a'],base['field_a']),field_b_max_change=difference(snap['field_b']['image'],base['field_b']['image']),structural_marginal_max_change=max(difference(a,b) for a,b in zip(st['fs'],t['fs'])),conditional_marginal_max_change=max(difference(a,b) for a,b in zip(st['fc'],t['fc'])) if st['conditional']['defined'] else None,structural_source_distance_max_change=difference(baseline_row,dijkstra(metric_graph(t,'fs'),directed=False,indices=0)),conditional_source_distance_max_change=difference(baseline_c,dijkstra(metric_graph(t,'fc'),directed=False,indices=0)) if baseline_c is not None else None))
             frames.append(snap)
         result.update(frames=frames,original_signal=original_signal,policy='Frozen model copies, positive compensated channel/unit scaling, biases included. Same input coordinates and reference. Numeric distance audit uses exact shortest paths from input node 0; it is not an all-pairs comparison. Fixed support and reselected support are explicitly distinguished.')
     elif mode=='transform':
@@ -138,4 +163,35 @@ def run(model,x,r,readout,p,progress,dataset=None):
                 pairs.append(dict(a=rows[i]['index'],b=rows[j]['index'],absolute_ig_cosine=float(a@b/den) if den else None,margin_gap=abs(rows[i]['margin']-rows[j]['margin']),eta1_gap=abs(rows[i]['eta1']-rows[j]['eta1']) if rows[i]['eta1'] is not None and rows[j]['eta1'] is not None else None))
         pairs.sort(key=lambda q:-(q['absolute_ig_cosine'] if q['absolute_ig_cosine'] is not None else -1))
         result.update(cases=rows,pairs=pairs,policy='User-specified cases, same checkpoint and reference, no hidden search. All candidate pairs shown ranked by cosine similarity of absolute IG. CNN dose uses selected primitive support with the same per-layer identity budget; MLP dose uses equal-count Field A pixels. Similarity and vulnerability differences are observations, not guaranteed outcomes.')
+    if mode=='reverse':
+        reverse,_=snapshot(model,r,x,readout,p)
+        reverse['orientation']='reference → input reversed';base['orientation']='original contrast'
+        result.update(frames=[base,reverse],policy='Same network and endpoint images. Reversing the contrast preserves Field A and reverses signed IG and Δg. Absolute IG is also preserved; this is orientation invariance, not attribution failure.',reverse_audit=dict(field_a_max_change=difference(base['field_a'],reverse['field_a']),ig_antisymmetry_error=difference(base['attribution']['integrated_gradients'],-np.asarray(reverse['attribution']['integrated_gradients']))))
+    if mode=='demo':
+        result['demonstration']=cancellation_demo()
+        result['policy']='Constructed two-input, three-hidden-unit ReLU example. Separate from the selected medical checkpoint. Readout signs are changed explicitly; these are different functions.'
     return result
+
+
+def cancellation_demo():
+    from torch import nn
+    from .core.network import Network
+    from .config import validate
+    m=Network(validate(dict(model='mlp',widths=[3],activation='relu',bias=False))).double()
+    m.layers=nn.ModuleList([nn.Linear(2,3,bias=False,dtype=torch.float64),nn.Linear(3,2,bias=False,dtype=torch.float64)])
+    m.shapes=[(1,1,2),(3,),(2,)];x=np.array([[[1.,1.]]]);r=np.zeros_like(x);readout=dict(scope='selected',a=1,b=0)
+    with torch.no_grad():m.layers[0].weight.copy_(torch.tensor([[1.,0.],[1.,0.],[0.,1.]]));m.layers[1].weight.zero_()
+    rows=[]
+    for sign in [1.,-1.]:
+        with torch.no_grad():m.layers[1].weight[1].copy_(torch.tensor([1.,sign,1.]))
+        snap,ss=snapshot(m,x,r,readout,dict(ig_steps=64));snap['name']='Constructive' if sign==1 else 'Cancelling';snap['curves']=[]
+        for name,indices in [('Positive route',[0]),('Second route',[1]),('Both routes',[0,1])]:
+            values=[]
+            for alpha in [1.,.75,.5,.25,0.]:
+                changed=m
+                for i in indices:changed=ChannelModel(changed,0,i,alpha)
+                with torch.no_grad():delta=float((scalar(changed(tensor(x)),readout)-scalar(changed(tensor(r)),readout))[0])
+                values.append(dict(alpha=alpha,delta=delta))
+            snap['curves'].append(dict(name=name,frames=values))
+        rows.append(snap)
+    return dict(rows=rows,definition='h1=ReLU(x1), h2=ReLU(x1), h3=ReLU(x2); g=h1 ± h2+h3; x=(1,1), reference=(0,0). Nonzero path amplitudes (1,±1,1).')

@@ -1,3 +1,7 @@
+# Pathflow Studio 0.8.0
+
+Visual evidence now has visual channel/connection selection, Grad-CAM, signed path and region diagnostics, and contrast/cancellation demonstrations. Start at Healthcare investigation → Visual evidence. Read `docs/VISUAL_INVESTIGATION_09.md` for the complete scientific and interaction guide. Existing training, geometry, healthcare and Evidence 08 workflows are retained.
+
 # Visual evidence update 0.7.0
 
 Healthcare investigation now includes Visual evidence. See `docs/VISUAL_EVIDENCE_08.md` for definitions, controls, comparison protocols and limitations.

@@ -20,10 +20,11 @@ try:
  with sync_playwright() as pw:
   browser=pw.chromium.launch(headless=True);page=browser.new_page(viewport={'width':1500,'height':1050});errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
   page.goto('http://127.0.0.1:5093/healthcare/'+rid);page.wait_for_function("document.getElementById('hcStep')?.options.length>0")
-  page.locator('#hcReferenceType').select_option('zero');page.locator('[data-health-tab="evidence"]').click();page.locator('#evIG').fill('8');page.locator('#evBudget').fill('2')
+  page.locator('#hcReferenceType').select_option('zero');page.locator('[data-health-tab="evidence"]').click();page.evaluate("document.getElementById('ivAdvanced').open=true");page.locator('#evIG').fill('8');page.locator('#evBudget').fill('2')
   def compute(mode):
    page.locator('#evMode').select_option(mode);page.evaluate('evidenceReport=null');page.locator('#evRun').click();page.wait_for_function("evidenceReport!==null",timeout=120000)
    assert page.evaluate('evidenceReport.evidence.mode')==mode
+   page.evaluate("document.getElementById('ivLegacy').open=true")
   compute('compare');assert page.locator('#evMaps canvas').count()==6
   assert page.evaluate('evidenceReport.evidence.baseline.field_b.total_mass')>=0
   page.locator('#evMaps').scroll_into_view_if_needed();page.screenshot(path=str(root/'comparison.png'))

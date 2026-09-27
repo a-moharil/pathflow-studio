@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from torchvision.models import resnet50, ResNet50_Weights
 
 class JointModel(nn.Module):
-    def __init__(self, classes=3, width=32, pretrained=False, tiny=False):
+    def __init__(self, classes=3, width=32, pretrained=False, tiny=False, classification_only=False):
         super().__init__()
         if tiny:  # Test fixture only, never offered as ResNet-50 in the UI.
             from torchvision.models.resnet import ResNet, BasicBlock
@@ -18,12 +18,13 @@ class JointModel(nn.Module):
             channels=[256,512,1024,2048]
         self.encoder.fc=nn.Identity()
         self.classifier=nn.Linear(channels[-1],classes)
+        self.classification_only=classification_only
         self.decoder=nn.ModuleList()
         incoming=channels[-1]
-        for skip in [channels[2],channels[1],channels[0],64]:
+        for skip in ([] if classification_only else [channels[2],channels[1],channels[0],64]):
             self.decoder.append(nn.ModuleList([nn.Conv2d(incoming+skip,width,3,padding=1),nn.Conv2d(width,width,3,padding=1)]))
             incoming=width
-        self.mask=nn.Conv2d(width,1,1)
+        self.mask=None if classification_only else nn.Conv2d(width,1,1)
         self.tiny=tiny
         for m in self.modules():
             if isinstance(m,nn.ReLU):m.inplace=False
@@ -75,6 +76,7 @@ class JointModel(nn.Module):
                 z=op(n+'.add','add',[identity,h]);z=op(n+'.out','relu',[z])
             stages.append(z)
         cls=mod('classification.logits',self.classifier,op('classification.pool','gap',[z]))
+        if self.classification_only:return {'classification':cls}
         for di,(layers,skip) in enumerate(zip(self.decoder,[stages[2],stages[1],stages[0],stem])):
             n=f'decoder.level{di+1}';z=op(n+'.up','resize',[z],size=shape(skip));z=op(n+'.cat','cat',[z,skip])
             for ci,m in enumerate(layers):z=op(n+f'.relu{ci+1}','relu',[mod(n+f'.conv{ci+1}',m,z)])

@@ -12,10 +12,30 @@ SOURCE='https://prod-dcd-datasets-cache-zipfiles.s3.eu-west-1.amazonaws.com/7fvg
 CITATION='Vallez et al., BUS-UCLM, Mendeley Data v1, doi:10.17632/7fvgj4jsp7.1; Scientific Data 12, 242 (2025). CC BY-NC 3.0 according to the v1 repository record.'
 CLASSES=['normal','benign','malignant']
 
+def default_path(root):
+    settings=Path(root)/'joint_data'/'settings.json'
+    if settings.exists():return json.loads(settings.read_text()).get('bus_uclm_path','')
+    manifest=Path(root)/'joint_data'/'bus-uclm-v1'/'manifest.json'
+    if manifest.exists():
+        d=json.loads(manifest.read_text())
+        if d.get('source_directory'):return d['source_directory']
+        if d.get('rows'):
+            import os
+            return os.path.commonpath([str(Path(r[k]).parent) for r in d['rows'] for k in ['image','mask']])
+    return str(Path.home()/'datasets'/'bus-uclm-v1')
+
+def save_default(root,path):
+    base=Path(path).expanduser().resolve()
+    if not base.is_dir():raise ValueError('The default BUS-UCLM folder must exist on the server: '+str(base))
+    dest=Path(root)/'joint_data';dest.mkdir(parents=True,exist_ok=True)
+    atomic_json(dest/'settings.json',dict(bus_uclm_path=str(base)))
+    return str(base)
+
 def prepare(root,progress=lambda s:None,source_dir=None):
     dest=Path(root)/'joint_data'/'bus-uclm-v1';manifest=dest/'manifest.json'
     if manifest.exists():return json.loads(manifest.read_text())
     dest.mkdir(parents=True,exist_ok=True)
+    if not source_dir and Path(default_path(root)).is_dir():source_dir=default_path(root)
     base=Path(source_dir).expanduser().resolve() if source_dir else dest/'raw'
     if not source_dir and not base.exists():
         archive=dest/'download.zip.part';progress('Downloading BUS-UCLM v1 from the publisher-linked archive')
@@ -43,7 +63,10 @@ def prepare(root,progress=lambda s:None,source_dir=None):
     byname={}
     for p in files:byname.setdefault(p.stem.lower(),[]).append(p)
     rows=[]
-    for key,paths in sorted(byname.items()):
+    from ..progress import stage
+    progress('Indexing BUS-UCLM image/mask pairs')
+    for done,(key,paths) in enumerate(sorted(byname.items()),1):
+        stage('Indexing BUS-UCLM image/mask pairs',done,len(byname),'filenames')
         if not re.fullmatch(r'[a-z]{4}_\d+',key):continue
         masks=[p for p in paths if any(s in p.parent.name.lower() for s in ['mask','label','annot','ground'])]
         images=[p for p in paths if p not in masks]
@@ -55,7 +78,10 @@ def prepare(root,progress=lambda s:None,source_dir=None):
         rows.append(dict(id=key,patient=key.split('_')[0],image=str(img.resolve()),mask=str(mask.resolve()),label=label,mask_encoding='rgb-lesion',sha256=hashlib.sha256(img.read_bytes()).hexdigest()))
     if not rows:raise ValueError('No unambiguous BUS-UCLM image/mask pairs found. Use a CSV manifest for a different layout.')
     result=dict(name='BUS-UCLM v1',citation=CITATION,source=SOURCE,classes=CLASSES,rows=rows,label_rule='Any red lesion -> malignant; otherwise green -> benign; empty expert mask -> normal. Labels are annotation-derived, not independent supervision.')
-    atomic_json(manifest,result);return result
+    result['source_directory']=str(base)
+    atomic_json(manifest,result)
+    save_default(root,base)
+    return result
 
 def import_manifest(root,path):
     p=Path(path).expanduser().resolve();rows=[]
@@ -76,6 +102,7 @@ def import_manifest(root,path):
     atomic_json(dest/'manifest.json',result);return key,result
 
 def split(data,seed):
+    if data.get('fixed_splits'):return data['rows']
     groups=sorted({r['patient'] for r in data['rows']})
     if len(groups)<6:raise ValueError('At least six independent patient/source groups required')
     random.Random(seed).shuffle(groups);n=len(groups);a=max(1,int(.7*n));b=max(a+1,int(.85*n));b=min(b,n-1)
@@ -91,7 +118,7 @@ def split(data,seed):
 
 def sample(row,size,device='cpu',dtype=torch.float32):
     # Letterbox image and mask together; content bounds are exported.
-    a=Image.open(row['image']).convert('RGB');m=Image.open(row['mask']).convert('RGB');w,h=a.size
+    a=Image.open(row['image']).convert('RGB');m=Image.open(row['mask']).convert('RGB') if row.get('mask') else Image.new('RGB',a.size);w,h=a.size
     if m.size!=a.size:raise ValueError('Image/mask mismatch')
     scale=min(size/w,size/h);nw,nh=max(1,round(w*scale)),max(1,round(h*scale));left,top=(size-nw)//2,(size-nh)//2
     image=Image.new('RGB',(size,size));image.paste(a.resize((nw,nh),Image.Resampling.BILINEAR),(left,top))
@@ -115,3 +142,25 @@ def synthetic(root):
             rows.append(dict(id=key,patient=str(patient),image=str(ip.resolve()),mask=str(mp.resolve()),label=label,mask_encoding='binary',sha256=hashlib.sha256(ip.read_bytes()).hexdigest()))
     result=dict(name='Synthetic engineering check (not medical data)',classes=CLASSES,rows=rows,citation='Generated locally',label_rule='Generated shape label; no medical meaning')
     atomic_json(dest/'manifest.json',result);return result
+
+
+def prepare_classification(root,dataset,seed=42,train_size=512,progress=lambda s:None):
+    from .. import datasets
+    if dataset not in ['fashion','pneumonia','synthetic']:raise ValueError('Unsupported classification dataset')
+    seed=int(seed);train_size=int(train_size)
+    if not 0<=seed<2**32 or not 32<=train_size<=60000:raise ValueError('Invalid dataset seed or training subset')
+    c=dict(dataset=dataset,seed=seed,train_size=train_size)
+    datasets.prepare(root,c,progress);values=datasets.load(root,c)
+    classes=['T-shirt/top','Trouser','Pullover','Dress','Coat','Sandal','Shirt','Sneaker','Bag','Ankle boot'] if dataset=='fashion' else ['Normal','Pneumonia'] if dataset=='pneumonia' else ['Vertical bar','Horizontal bar']
+    key=f'{dataset}-{seed}-{train_size}';dest=Path(root)/'joint_data'/key;dest.mkdir(parents=True,exist_ok=True);rows=[]
+    from ..progress import stage
+    count=sum(len(values[s+'_y']) for s in ['train','val','test']);done=0
+    for split in ['train','val','test']:
+        folder=dest/split;folder.mkdir(exist_ok=True)
+        for x,y,idx in zip(values[split+'_x'],values[split+'_y'],values[split+'_ids']):
+            path=folder/(str(int(idx))+'.png')
+            if not path.exists():Image.fromarray(np.round(x[0]*255).astype('uint8')).save(path)
+            rows.append(dict(id=split+'-'+str(int(idx)),patient=split+'-'+str(int(idx)),image=str(path.resolve()),mask=None,label=int(y),split=split,mask_encoding=None,sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
+            done+=1;stage('Preparing classification adapter',done,count,'images')
+    result=dict(name=dataset+' classification',classes=classes,rows=rows,has_masks=False,fixed_splits=True,source_dataset=dataset,source_seed=seed,train_size=train_size,label_rule='Dataset class labels; no mask annotations',preprocessing='Grayscale replicated into RGB, letterboxed to chosen model input size; ImageNet affine normalization inside model',split_policy='Existing dataset adapter splits and source indices retained; identifiers are image IDs, not patient claims')
+    atomic_json(dest/'manifest.json',result);return key,result

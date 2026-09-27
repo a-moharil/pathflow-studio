@@ -86,13 +86,13 @@ def test_dataset_groups_and_content(tmp_path):
 
 def test_app_legacy_and_joint(tmp_path):
     from lab import create_app
-    app=create_app(tmp_path);client=app.test_client();assert client.get('/').status_code==200;assert client.get('/joint').status_code==200
+    app=create_app(tmp_path);client=app.test_client();assert client.get('/').status_code==200;assert client.get('/joint',follow_redirects=True).status_code==200
     with client.session_transaction() as sess:token=sess['csrf']
     headers={'X-CSRF-Token':token};data.synthetic(tmp_path)
     r=client.post('/api/joint/create',json=dict(dataset='synthetic',size=64,width=16,seed=17),headers=headers);assert r.status_code==200
     rid=r.json['id'];response=client.get('/api/joint/'+rid);assert response.status_code==200;assert len(response.json['cases'])>0
     assert client.post('/api/joint/'+rid+'/control',json=dict(action='pause'),headers=headers).status_code==200
-    assert client.get('/joint/'+rid).status_code==200
+    assert client.get('/joint/'+rid,follow_redirects=True).status_code==200
     with engine.st.db(tmp_path) as db:assert db.execute('SELECT count(*) FROM runs').fetchone()[0]==0
 
 def test_optimizers_and_controls(tmp_path):

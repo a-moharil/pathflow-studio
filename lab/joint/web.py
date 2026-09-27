@@ -1,17 +1,17 @@
 """Additive healthcare joint-task pages; existing routes remain unchanged."""
 import json,math
 from pathlib import Path
-from flask import Blueprint,current_app,jsonify,render_template,request
+from flask import Blueprint,current_app,jsonify,render_template,request,redirect,url_for
 from .. import storage as st
 from . import engine,data
 web=Blueprint('joint',__name__)
 def root():return current_app.config['ROOT']
 
 @web.get('/joint')
-def index():return render_template('joint.html')
+def index():return redirect('/design?model=resnet50_joint')
 @web.get('/joint/<rid>')
 def workspace(rid):
-    engine.get(root(),rid);return render_template('joint_run.html',rid=rid)
+    engine.get(root(),rid);return redirect('/experiment/'+rid)
 @web.get('/api/joint')
 def registry():
     with st.db(root()) as db:ids=[r[0] for r in db.execute('SELECT id FROM joint_runs ORDER BY created DESC')]
@@ -28,12 +28,25 @@ def registry():
         for r in runs:
             r['analysis_count']=db.execute("SELECT count(*) FROM jobs WHERE run=? AND status='completed'",(r['id'],)).fetchone()[0]
             r['pending_measurements']=db.execute("SELECT count(*) FROM jobs WHERE run=? AND status IN ('queued','running')",(r['id'],)).fetchone()[0]
-    return jsonify(runs=runs,datasets=datasets,dataset_catalog=catalog)
+    return jsonify(runs=runs,datasets=datasets,dataset_catalog=catalog,bus_uclm_path=data.default_path(root()))
+@web.post('/api/joint/data/default')
+def default_folder():
+    return jsonify(path=data.save_default(root(),request.get_json().get('path','')))
+
+@web.get('/api/compute-progress')
+def compute_progress():
+    from ..progress import snapshot
+    return jsonify(snapshot(root()))
+
 @web.post('/api/joint/data')
 def prepare():
     d=request.get_json();action=d.get('action','download')
-    if action not in ['download','import','manifest','synthetic']:raise ValueError('Unknown dataset action')
-    return jsonify(job=st.job(root(),dict(kind='joint_data',action=action,path=d.get('path',''))))
+    if action not in ['download','import','manifest','synthetic','classification']:raise ValueError('Unknown dataset action')
+    path=d.get('path','').strip()
+    if action=='import':
+        path=path or data.default_path(root())
+        data.save_default(root(),path)
+    return jsonify(job=st.job(root(),dict(kind='joint_data',action=action,path=path,dataset=d.get('dataset'),seed=d.get('seed',42),train_size=d.get('train_size',512))))
 @web.post('/api/joint/create')
 def create():return jsonify(id=engine.create(root(),request.get_json()))
 @web.get('/api/joint/<rid>')
@@ -62,9 +75,16 @@ def analyze(rid):
         import torch
         ck=torch.load(engine.folder(root(),rid)/(step+'.pt'),map_location='cpu',weights_only=False);step=str(ck['step']);path=engine.folder(root(),rid)/(step+'.pt')
         if not path.exists():engine.atomic_save(path,ck)
+    from ..core.transforms import specification
+    d['transform']=specification(d.get('transform'))
+    if not 0<=int(d.get('class_a',2))<r['config'].get('classes',3) or not -1<=int(d.get('class_b',0))<r['config'].get('classes',3):raise ValueError('Invalid readout class')
+    size=r['config']['size'];region=list(map(int,d.get('region',[0,0,size,size])))
+    if len(region)!=4 or not 0<=region[0]<region[2]<=size or not 0<=region[1]<region[3]<=size:raise ValueError('Mask readout region must be a nonempty rectangle inside the image')
+    d['region']=region
     d.update(kind='joint_analysis',checkpoint=step)
     steps=int(d.get('ig_steps',16));channel=int(d.get('channel',0));alpha=float(d.get('alpha',1));budget=float(d.get('memory_gib',4))
     if not 4<=steps<=128 or channel<0 or not 0<=alpha<=1 or not 1<=budget<=64:raise ValueError('Invalid analysis settings')
     if d.get('reference_type','dataset') not in ['dataset','zero']:raise ValueError('Invalid reference')
+    if d.get('geometry_scope','operations') not in ['operations','conv1']:raise ValueError('Invalid geometry scope')
     d.update(ig_steps=steps,channel=channel,alpha=alpha,memory_gib=budget)
     return jsonify(job=st.job(root(),d,rid))

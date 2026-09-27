@@ -8,6 +8,7 @@ import torch.nn.functional as F
 from .. import storage as st
 from . import data
 from .model import JointModel
+from ..progress import stage,task,training_estimate
 CACHE={}
 
 def init(root):
@@ -26,6 +27,8 @@ def config(raw):
     if not 0<=c['seed']<2**32:raise ValueError('Seed must be an unsigned 32-bit integer')
     if (c['task']!='segmentation' and c['class_weight']<=0) or (c['task']!='classification' and c['mask_weight']+c['dice_weight']<=0):raise ValueError('Selected task must have positive loss weight')
     if not all(ch.isalnum() or ch in '-_' for ch in c['dataset']):raise ValueError('Invalid dataset key')
+    c['classes']=int(raw.get('classes',3));c['classification_only']=bool(raw.get('classification_only',False))
+    if not 2<=c['classes']<=1000:raise ValueError('Class count outside 2..1000')
     return c
 
 def get(root,rid):
@@ -40,13 +43,15 @@ def folder(root,rid):
 def create(root,raw):
     c=config(raw);path=Path(root)/'joint_data'/c['dataset']/'manifest.json'
     if not path.exists():raise ValueError('Prepare or import this dataset first')
-    d=json.loads(path.read_text());rows=data.split(d,c['seed']);rid=uuid.uuid4().hex[:16];p=folder(root,rid);p.mkdir()
+    d=json.loads(path.read_text());c['classes']=len(d['classes']);c['class_names']=d['classes'];c['has_masks']=d.get('has_masks',True)
+    if not c['has_masks'] and c['task']!='classification':raise ValueError('This dataset has no segmentation annotations; choose classification')
+    c['classification_only']=c['task']=='classification';rows=data.split(d,c['seed']);rid=uuid.uuid4().hex[:16];p=folder(root,rid);p.mkdir()
     st.atomic_json(p/'data.json',dict(d,rows=rows));st.atomic_json(p/'history.json',[])
     with st.db(root) as db:db.execute('INSERT INTO joint_runs(id,config,status,created) VALUES(?,?,?,?)',(rid,json.dumps(c),'ready',time.time()))
     return rid
 
 def build(c,pretrained=False):
-    torch.manual_seed(c['seed']);m=JointModel(width=c['width'],pretrained=pretrained)
+    torch.manual_seed(c['seed']);m=JointModel(classes=c.get('classes',3),width=c['width'],pretrained=pretrained,classification_only=c.get('classification_only',False))
     if c['freeze']:
         for p in m.encoder.parameters():p.requires_grad_(False)
     return m
@@ -77,7 +82,11 @@ def loadstate(root,r):
     state=dict(model=m,opt=opt,step=step);CACHE.clear();CACHE[rid]=state;return state
 
 def loss(out,y,mask,c):
-    ce=F.cross_entropy(out['classification'],y);bce=F.binary_cross_entropy_with_logits(out['segmentation'],mask)
+    ce=F.cross_entropy(out['classification'],y)
+    if 'segmentation' not in out:
+        total=c['class_weight']*ce
+        return total,dict(loss=float(total.detach()),ce=float(ce.detach()))
+    bce=F.binary_cross_entropy_with_logits(out['segmentation'],mask)
     prob=out['segmentation'].sigmoid();dice=(2*(prob*mask).sum((1,2,3))+1e-6)/(prob.sum((1,2,3))+mask.sum((1,2,3))+1e-6);dl=1-dice.mean()
     total=(c['class_weight']*ce if c['task']!='segmentation' else ce*0)+(c['mask_weight']*bce+c['dice_weight']*dl if c['task']!='classification' else bce*0)
     return total,dict(loss=float(total.detach()),ce=float(ce.detach()),bce=float(bce.detach()),dice_loss=float(dl.detach()))
@@ -87,13 +96,22 @@ def batch(rows,size,device):
     return torch.stack([v[0] for v in samples]),torch.stack([v[1] for v in samples]),torch.tensor([v[2] for v in samples],device=device)
 
 @torch.no_grad()
-def evaluate(m,rows,c):
-    m.eval();limit=c['evaluation_count'];selected=rows if not limit else rows[:limit];result={k:0. for k in ['loss','ce','bce','dice_loss','accuracy','dice','iou']}
+def evaluate(m,rows,c,split="evaluation"):
+    stage("Evaluating "+split)
+    m.eval();limit=c['evaluation_count'];selected=rows if not limit else rows[:limit];result={k:0. for k in (['loss','ce','accuracy'] if c.get('classification_only') else ['loss','ce','bce','dice_loss','accuracy','dice','iou'])}
+    stage('Evaluating '+split,0,len(selected),'images')
     for start in range(0,len(selected),c['batch']):
-        rr=selected[start:start+c['batch']];x,mask,y=batch(rr,c['size'],c['device']);out=m(x);_,v=loss(out,y,mask,c);pred=out['segmentation']>0
+        rr=selected[start:start+c['batch']];x,mask,y=batch(rr,c['size'],c['device']);out=m(x);_,v=loss(out,y,mask,c)
+        if 'segmentation' not in out:
+            v['accuracy']=float((out['classification'].argmax(1)==y).float().mean())
+            for k in result:result[k]+=v[k]*len(rr)
+            stage('Evaluating '+split,start+len(rr),len(selected),'images')
+            continue
+        pred=out['segmentation']>0
         target=mask>0;intersection=(pred&target).sum((1,2,3));union=(pred|target).sum((1,2,3));den=pred.sum((1,2,3))+target.sum((1,2,3))
         v.update(accuracy=float((out['classification'].argmax(1)==y).float().mean()),dice=float(torch.where(den>0,2*intersection/den,torch.ones_like(den,dtype=torch.float32)).mean()),iou=float(torch.where(union>0,intersection/union,torch.ones_like(union,dtype=torch.float32)).mean()))
         for k in result:result[k]+=v[k]*len(rr)
+        stage("Evaluating "+split,start+len(rr),len(selected),"images")
     return dict({k:v/len(selected) for k,v in result.items()},samples=len(selected),population=len(rows),scope='full split' if len(selected)==len(rows) else 'fixed leading subset; not a full-split estimate')
 
 def quantum(root,r):
@@ -107,25 +125,42 @@ def quantum(root,r):
     if request in ['pause','stop']:
         with st.db(root) as db:db.execute("UPDATE joint_runs SET status='paused',request='' WHERE id=?",(rid,))
         return
+    update_started=time.monotonic()
+    stage('Loading model and optimizer state')
     state=loadstate(root,r);m,opt=state['model'],state['opt'];rows=json.loads((p/'data.json').read_text())['rows'];train=[a for a in rows if a['split']=='train']
+    timings=state.setdefault('timings',dict(base=[],evaluation=[]))
+    if request=='start':timings['base'].clear();timings['evaluation'].clear()
+    remaining=max(0,r['target']-state['step'])
+    evals=r['target']//c['save_every']-state['step']//c['save_every']+int(r['target']%c['save_every']!=0 and remaining>0)
+    eta=(sum(timings['base'])/len(timings['base'])*remaining+(sum(timings['evaluation'])/len(timings['evaluation'])*evals if evals else 0)) if len(timings['base'])>=2 and (not evals or timings['evaluation']) else None
+    training_estimate(dict(eta_seconds=eta,remaining_updates=remaining,remaining_evaluations=evals,note='measured update/evaluation averages at update start; excludes queue time' if eta is not None else 'calibrating update and evaluation costs'))
     rng=np.random.default_rng(c['seed']+state['step']);idx=rng.choice(len(train),c['batch'],replace=len(train)<c['batch']);x,mask,y=batch([train[i] for i in idx],c['size'],c['device'])
     m.train()
     # Fixed running statistics during fine-tuning are an explicit v1 policy,
     # avoiding batch-size-dependent inference semantics.
     for module in m.modules():
         if isinstance(module,nn.BatchNorm2d):module.eval()
+    stage(f'Training update {state["step"]+1} / {r["target"]}: forward pass')
     opt.zero_grad(set_to_none=True);out=m(x);total,v=loss(out,y,mask,c)
     if not torch.isfinite(total):raise RuntimeError('Non-finite training loss')
+    stage('Backward pass and optimizer update')
     total.backward();torch.nn.utils.clip_grad_norm_(m.parameters(),10.);opt.step();state['step']+=1;step=state['step']
     ck=dict(model=m.state_dict(),optimizer=opt.state_dict(),step=step,config=c,format='joint-1')
+    stage('Saving latest checkpoint')
     atomic_save(p/'latest.pt',ck)
     history=json.loads((p/'history.json').read_text());entry=dict(step=step,train_batch=v)
+    evaluation_seconds=0.
     if step%c['save_every']==0 or step>=r['target']:
-        for split in ['train','val','test']:entry[split]=evaluate(m,[a for a in rows if a['split']==split],c)
+        evaluation_started=time.monotonic()
+        for split in ['train','val','test']:entry[split]=evaluate(m,[a for a in rows if a['split']==split],c,split)
+        stage('Saving historical and best checkpoints')
         atomic_save(p/(str(step)+'.pt'),ck)
         metric=c['checkpoint_metric'];score=entry['val'][metric];best_path=p/'best.json';best=json.loads(best_path.read_text()) if best_path.exists() else None
         if best is None or (score<best['score'] if metric=='loss' else score>best['score']):
             atomic_save(p/'best.pt',ck);st.atomic_json(best_path,dict(step=step,metric=metric,score=score,split='val'))
+        evaluation_seconds=time.monotonic()-evaluation_started
+        timings['evaluation'].append(evaluation_seconds);timings['evaluation']=timings['evaluation'][-10:]
+    timings['base'].append(time.monotonic()-update_started-evaluation_seconds);timings['base']=timings['base'][-20:]
     history.append(entry);st.atomic_json(p/'history.json',history)
     with st.db(root) as db:db.execute("UPDATE joint_runs SET step=?,status=?,request=CASE WHEN request='start' THEN '' ELSE request END WHERE id=?",(step,'paused' if step>=r['target'] else 'training',rid))
 
@@ -135,7 +170,9 @@ def tick(root,controls_only=False):
         query="SELECT id FROM joint_runs WHERE "+("request IN ('pause','stop','delete')" if controls_only else "request<>'' OR status='training'")+" ORDER BY CASE WHEN request IN ('pause','stop','delete') THEN 0 ELSE 1 END,created LIMIT 1"
         r=db.execute(query).fetchone()
     if not r:return False
-    try:quantum(root,get(root,r[0]))
+    try:
+        run=get(root,r[0])
+        with task(root,f'ResNet-50 update {run["step"]+1} / {run["target"]}',run=r[0]):quantum(root,run)
     except Exception:
         import traceback
         CACHE.pop(r[0],None)

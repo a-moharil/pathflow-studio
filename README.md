@@ -1,3 +1,11 @@
+# Update 0.10.0
+
+Use Design experiment for MLP, CNN and ResNet. Architecture-specific controls appear inline. See docs/UNIFIED_RESNET_13.md for supported tasks, shared geometry and explicit scientific limits.
+
+# Update 0.9.2
+
+Persistent BUS-UCLM folder and live computation reporting are described in docs/PROGRESS_12.md. Existing datasets and experiments are preserved.
+
 # Pathflow Studio 0.9.1
 
 This update fixes dataset/architecture discovery and adds explicit ResNet presets. See `docs/SELECTION_FIX_11.md`. Select BUS-UCLM or ResNet-50 from **Design experiment**, or open **Joint healthcare** directly. Datasets remain visible before download.

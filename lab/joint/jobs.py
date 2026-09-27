@@ -9,7 +9,9 @@ def process(root,j):
     p=json.loads(j['payload']);progress=lambda msg:st.progress(root,j['id'],msg)
     if p['kind']=='joint_data':
         action=p['action']
-        if action=='synthetic':result=data.synthetic(root)
+        if action=='classification':
+            key,result=data.prepare_classification(root,p['dataset'],p.get('seed',42),p.get('train_size',512),progress);result=dict(result,key=key)
+        elif action=='synthetic':result=data.synthetic(root)
         elif action=='manifest':key,result=data.import_manifest(root,p['path']);result=dict(result,key=key)
         else:result=data.prepare(root,progress,p.get('path') if action=='import' else None)
         result={k:v for k,v in result.items() if k!='rows'};dest=Path(root)/'joint_data'
@@ -22,15 +24,26 @@ def process(root,j):
         model,ck=engine.restore(root,r,p['checkpoint']);model=model.double().eval()
         x,target,label,meta=data.sample(rows[idx],c['size'],dtype=torch.float64);x=x[None]
         ref=torch.zeros_like(x) if zero else data.sample(rows[refidx],c['size'],dtype=torch.float64)[0][None]
+        from ..core import transforms
+        spec_transform=transforms.specification(p.get('transform'))
+        if spec_transform!={'dx':0.,'dy':0.,'angle':0.,'scale':1.}:
+            x=torch.from_numpy(transforms.image(x[0].numpy(),spec_transform))[None]
+            ref=torch.from_numpy(transforms.image(ref[0].numpy(),spec_transform))[None]
+            from scipy.ndimage import affine_transform
+            import numpy as np
+            M,b=transforms.matrix(target.shape[-2:],spec_transform);inverse=np.linalg.inv(M);swap=np.array([[0,1],[1,0]])
+            target=torch.from_numpy(affine_transform(target[0].numpy(),swap@inverse@swap,offset=-swap@inverse@b,order=0,mode='constant',cval=0,prefilter=False))[None]
         size=c['size'];region=p.get('region',[0,0,size,size]);layer=p.get('layer','stem.relu');channel=p['channel'];alpha=p['alpha']
         specs=[dict(head='classification',a=int(p.get('class_a',2)),b=None if int(p.get('class_b',0))<0 else int(p.get('class_b',0))),dict(head='segmentation',region=region)]
-        result=dict(version='joint-investigation-1',checkpoint=ck['step'],config=c,request=p,image=x[0].permute(1,2,0).tolist(),reference_image=ref[0].permute(1,2,0).tolist(),target=target[0].tolist(),label=label,case=rows[idx]['id'],reference_case='zero in raw [0,1] input coordinates' if zero else rows[refidx]['id'],reference_label=None if zero else rows[refidx]['label'],preprocessing=meta,estimated_memory_gib=estimated,heads={})
+        if c.get('classification_only'):specs=specs[:1]
+        progress('Checkpoint loaded; computing '+str(len(specs))+' readout(s)')
+        result=dict(version='joint-investigation-1',checkpoint=ck['step'],config=c,request=p,image=x[0].permute(1,2,0).tolist(),reference_image=ref[0].permute(1,2,0).tolist(),target=target[0].tolist() if c.get('has_masks',True) else None,label=label,case=rows[idx]['id'],reference_case='zero in raw [0,1] input coordinates' if zero else rows[refidx]['id'],reference_label=None if zero else rows[refidx]['label'],preprocessing=meta,estimated_memory_gib=estimated,heads={})
         for spec in specs:
-            result['heads'][spec['head']]=analyze(model,x,ref,spec,layer,channel,p['ig_steps'],geometry=bool(p.get('geometry',False)),progress=lambda msg,h=spec['head']:progress(h+': '+msg))
+            result['heads'][spec['head']]=analyze(model,x,ref,spec,layer,channel,p['ig_steps'],geometry=p.get('geometry_scope','operations') if p.get('geometry',True) else False,fit_hyperbolic=bool(p.get('fit_hyperbolic',False)),progress=lambda msg,h=spec['head']:progress(h+': '+msg))
         result['intervention']=None
         if alpha!=1:
             gates={layer:(channel,alpha)};post={}
-            for spec in specs:post[spec['head']]=analyze(model,x,ref,spec,layer,channel,p['ig_steps'],gates=gates,progress=lambda msg,h=spec['head']:progress('Intervened '+h+': '+msg))
+            for spec in specs:post[spec['head']]=analyze(model,x,ref,spec,layer,channel,p['ig_steps'],gates=gates,geometry=p.get('geometry_scope','operations') if p.get('geometry',True) else False,fit_hyperbolic=bool(p.get('fit_hyperbolic',False)),progress=lambda msg,h=spec['head']:progress('Intervened '+h+': '+msg))
             doses=[]
             with torch.no_grad():
                 for dose in [1.,.75,.5,.25,0.]:

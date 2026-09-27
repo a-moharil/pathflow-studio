@@ -16,17 +16,21 @@ def readout_tensor(out,spec):
     x0,y0,x1,y1=map(int,spec['region']);return out['segmentation'][:,:,y0:y1,x0:x1].mean((1,2,3))
 
 def attributions(model,x,ref,spec,layer,steps,gates):
+    from ..progress import stage
+    stage("Grad-CAM and input gradients")
     capture={};xx=x.detach().requires_grad_(True);out=model(xx,gates=gates,capture=capture);score=readout_tensor(out,spec).sum()
     if layer not in capture:raise ValueError('Unknown feature channel layer')
-    feature=capture[layer];gx,gf=torch.autograd.grad(score,(xx,feature));cam=(feature*gf.mean((-2,-1),keepdim=True)).sum(1).relu()[0]
+    feature=capture[layer];gx,gf=torch.autograd.grad(score,(xx,feature),allow_unused=True);cam=None if gf is None else (feature*gf.mean((-2,-1),keepdim=True)).sum(1).relu()[0]
     grad_sum=torch.zeros_like(x)
+    stage("Integrated Gradients",0,steps+1,"gradient evaluations")
     for i in range(steps+1):
         z=(ref+(x-ref)*(i/steps)).detach().requires_grad_(True)
         y=readout_tensor(model(z,gates=gates),spec).sum();g=torch.autograd.grad(y,z)[0]
         grad_sum+=g*(.5 if i in [0,steps] else 1.)
+        stage("Integrated Gradients",i+1,steps+1,"gradient evaluations")
     ig=(x-ref)*grad_sum/steps
     with torch.no_grad():delta=float(readout_tensor(model(x,gates=gates),spec)-readout_tensor(model(ref,gates=gates),spec))
-    return dict(IG=arr(ig[0].sum(0)),input_gradient=arr(gx[0].sum(0)),input_gradient_channels=arr(gx[0]),GradCAM=arr(cam),IG_sum=float(ig.sum()),IG_residual=float(ig.sum())-delta,IG_steps=steps,GradCAM_layer=layer,GradCAM_scope='native feature coordinates, endpoint x; positive Grad-CAM',gradient_scope='signed sum over RGB channels; per-channel values included')
+    return dict(IG=arr(ig[0].sum(0)),input_gradient=arr(gx[0].sum(0)),input_gradient_channels=arr(gx[0]),GradCAM=arr(cam) if cam is not None else None,GradCAM_status='available' if cam is not None else 'not applicable: selected feature has no influence on this readout',IG_sum=float(ig.sum()),IG_residual=float(ig.sum())-delta,IG_steps=steps,GradCAM_layer=layer,GradCAM_scope='native feature coordinates, endpoint x; positive Grad-CAM',gradient_scope='signed sum over RGB channels; per-channel values included')
 
 @torch.no_grad()
 def trace(model,x,ref,gates):
@@ -53,45 +57,47 @@ def geometry_edges(measure,channel,window):
                         sy=yy*e.kw['stride'][0]-e.kw['padding'][0]+ky;sx=xx*e.kw['stride'][1]-e.kw['padding'][1]+kx
                         if 0<=sy<a.shape[2] and 0<=sx<a.shape[3]:
                             mass=float(a[0,c,sy,sx]*coef[channel,c,ky,kx]*b[0,channel,yy,xx])*factor
-                            edges.append((f'input:{c}:{sy}:{sx}',f'conv1:{channel}:{yy}:{xx}',mass))
+                            edges.append((f'preprocess:{c}:{sy}:{sx}',f'conv1:{channel}:{yy}:{xx}',mass))
     return edges
 
-def embed_subgraph(structural,conditional,topology):
-    from scipy.sparse import csr_matrix
-    from scipy.sparse.csgraph import shortest_path,connected_components
-    names=sorted({v for a,b,_ in structural for v in [a,b]});idx={v:i for i,v in enumerate(names)};count=len(names)
-    if count>800:return dict(status='budget_exceeded',nodes=count,scope=CONVENTIONS['geometry'])
-    result=dict(status='available',scope=CONVENTIONS['geometry'],convention=CONVENTIONS['metric'],nodes=names,edges=[[idx[a],idx[b]] for a,b,_ in structural],epsilon=.03,dimensions={})
-    for label,rows in [('structural',structural),('conditional',conditional)]:
-        if label=='conditional' and conditional is None:result[label]=dict(status='undefined_conditional_measure');continue
-        mass=np.array([v[2] for v in rows]);ref=np.array([v[2] for v in topology]);length=1/(np.divide(mass,ref,out=np.zeros_like(mass),where=ref>0)+.03)
-        a,b=np.array(result['edges']).T;graph=csr_matrix((np.r_[length,length],(np.r_[a,b],np.r_[b,a])),shape=(count,count));D=shortest_path(graph,directed=False)
-        if not np.isfinite(D).all():result[label]=dict(status='disconnected',components=int(connected_components(graph)[0]));continue
-        B=-.5*(D**2-(D**2).mean(0)[None,:]-(D**2).mean(1)[:,None]+(D**2).mean());val,vec=np.linalg.eigh(B);order=np.argsort(val)[::-1];coords={}
-        for dim in [2,3]:
-            keep=order[:dim];X=vec[:,keep]*np.sqrt(np.maximum(val[keep],0))
-            # Independent stress refinement via a compact deterministic full-pair solver.
-            xt=torch.tensor(X,dtype=torch.float64,requires_grad=True);target=torch.tensor(D,dtype=torch.float64);opt=torch.optim.Adam([xt],lr=max(float(np.median(D[D>0]))*.01,.001))
-            with torch.enable_grad():
-                for _ in range(100):
-                    opt.zero_grad();dist=torch.cdist(xt,xt);objective=((dist-target).square()/(target.square()+float(np.median(D[D>0]))**2*.01)).mean();objective.backward();opt.step()
-            X=xt.detach().numpy();dist=np.linalg.norm(X[:,None]-X[None,:],axis=2);stress=float(np.linalg.norm(dist-D)/np.linalg.norm(D));coords[str(dim)]=dict(positions=X.tolist(),relative_stress=stress,iterations=100,fit='full pairs, relative-scale balanced stress; completion does not imply exact metric preservation')
-        result[label]=dict(status='available',mass=mass.tolist(),edge_lengths=length.tolist(),dimensions=coords,distances=D.tolist(),BCANw_status='not computed: this is a selected induced subgraph, not a full-network BCANw result')
-    if result.get('conditional',{}).get('status')=='available':
-        from scipy.linalg import orthogonal_procrustes
-        for dim in ['2','3']:
-            A=np.array(result['structural']['dimensions'][dim]['positions']);B=np.array(result['conditional']['dimensions'][dim]['positions']);A-=A.mean(0);B-=B.mean(0);R,_=orthogonal_procrustes(B,A);B=B@R
-            result['structural']['dimensions'][dim]['positions']=A.tolist();result['conditional']['dimensions'][dim]['positions']=B.tolist()
-    return result
+def operation_edges(measure):
+    t=measure.tape
+    return [(t.nodes[j].name,n.name,measure.branch_mass(i,k)) for i,n in enumerate(t.nodes[:measure.sink+1]) for k,j in enumerate(n.parents)]
 
-def analyze(model,x,ref,spec,layer,channel,steps=16,gates=None,geometry=False,progress=lambda s:None):
+def embed_subgraph(structural,conditional,topology,scope=None,fit_hyperbolic=False):
+    from ..core.metricfit import refine
+    from ..core.hyperbolic import compute
+    names=list(dict.fromkeys(v for a,b,_ in structural for v in [a,b]));idx={v:i for i,v in enumerate(names)};count=len(names)
+    if count>800:return dict(status='budget_exceeded',nodes=count,scope=scope or CONVENTIONS['geometry'])
+    edges=[]
+    for k,(a,b,mass) in enumerate(structural):
+        r=topology[k][2];cm=conditional[k][2] if conditional is not None else 0.
+        edges.append(dict(u=idx[a],v=idx[b],s=mass,c=cm,length_s=1/(mass/r+.03) if r>0 else 1/.03,length_c=1/(cm/r+.03) if r>0 else 1/.03))
+    # Explicit lengths keep the quotient/induced metric separate from legacy cut normalization.
+    shared=dict(nodes=[dict(label=name,layer=0 if i==0 else 1,index=i) for i,name in enumerate(names)],sizes=[1,count-1,1],edges=edges,conditional=dict(defined=conditional is not None),metric=dict(epsilon=.03,explicit_edge_lengths=True,display_reference=dict(unit=1.)),scope=scope or CONVENTIONS['geometry'])
+    # Fixed topology-only display unit, independent of weights and contrast values.
+    from scipy.sparse import csr_matrix
+    from scipy.sparse.csgraph import shortest_path
+    u=np.array([e['u'] for e in edges]);v=np.array([e['v'] for e in edges])
+    hops=shortest_path(csr_matrix((np.ones(2*len(edges)),(np.r_[u,v],np.r_[v,u])),shape=(count,count)),directed=False,unweighted=True)
+    shared['metric']['display_reference']=dict(unit=float(np.median(hops[np.isfinite(hops)&(hops>0)])),convention='Median unweighted hop distance of this fixed scoped topology; distances divided by this recorded unit for fitting only')
+    from ..progress import stage
+    stage('Fitting independently in Euclidean 2-D and 3-D')
+    design,targets=refine(shared,steps=120)
+    if fit_hyperbolic:
+        stage('Fitting Lorentz 3-D representation')
+        shared['hyperbolic']=compute(shared,steps=150,design=design,T=targets)
+    shared['projection_diagnostics']={side:{dim:dict(status=entry[k].get('quality','undefined'),stress=entry[k].get('heldout',{}).get('stress')) for dim,entry in shared['euclidean']['dimensions'].items()} for k,side in enumerate(['s','c'])}
+    return dict(status='available',scope=shared['scope'],nodes=names,edges=[[e['u'],e['v']] for e in edges],shared=shared,channel=None,BCANw_status='Not computed: displayed scope is not a full scalar-network BCANw measurement')
+
+def analyze(model,x,ref,spec,layer,channel,steps=16,gates=None,geometry=False,fit_hyperbolic=False,progress=lambda s:None):
     gates=gates or {};progress('Tracing finite endpoint contrasts');t,heads,capture=trace(model,x,ref,gates);sink=t.readout(heads,spec)
     if layer not in capture:raise ValueError('Invalid selected layer')
     selected=capture[layer]
     if not 0<=channel<t.nodes[selected].x.shape[1]:raise ValueError('Invalid selected channel')
     progress('Computing exact tensor path marginals');m=Measure(t,sink);defined=m.logQ!=-math.inf
     reconstructed,local_error=m.signed_reconstruction();delta=float(t.nodes[sink].x-t.nodes[sink].ref)
-    result=dict(conventions=CONVENTIONS,readout=spec,delta=delta,signed_reconstruction=reconstructed,reconstruction_residual=abs(reconstructed-delta),largest_forward_contrast_error=local_error,logQ=scalar(m.logQ),Q=scalar(math.exp(m.logQ)) if -745<m.logQ<709 else None,conditional_status='available' if defined else 'undefined: zero total squared path amplitude',FieldA=arr(m.node_mass(0)[0].sum(0)) if defined else None,native_channel_occupation=arr(m.node_mass(selected)[0,channel]) if defined else None,layers=[dict(name=name,channels=int(t.nodes[i].x.shape[1]),height=int(t.nodes[i].x.shape[-2]),width=int(t.nodes[i].x.shape[-1])) for name,i in capture.items()],selected_layer=layer,selected_channel=channel)
+    result=dict(conventions=dict(CONVENTIONS,geometry='Operation quotient; see geometry.scope and recorded explicit lengths' if geometry=='operations' else CONVENTIONS['geometry']),readout=spec,delta=delta,signed_reconstruction=reconstructed,reconstruction_residual=abs(reconstructed-delta),largest_forward_contrast_error=local_error,logQ=scalar(m.logQ),Q=scalar(math.exp(m.logQ)) if -745<m.logQ<709 else None,conditional_status='available' if defined else 'undefined: zero total squared path amplitude',FieldA=arr(m.node_mass(0)[0].sum(0)) if defined else None,native_channel_occupation=arr(m.node_mass(selected)[0,channel]) if defined else None,layers=[dict(name=name,channels=int(t.nodes[i].x.shape[1]),height=int(t.nodes[i].x.shape[-2]),width=int(t.nodes[i].x.shape[-1])) for name,i in capture.items()],selected_layer=layer,selected_channel=channel)
     result['operation_occupation']=[dict(name=n.name,mass=float(m.node_mass(i).sum()),incoming=[m.branch_mass(i,k) for k in range(len(n.edges))]) for i,n in enumerate(t.nodes[:sink+1])]
     selected_mass=m.node_mass(selected)
     result['channel_gallery']=[dict(channel=c,mass=float(selected_mass[0,c].sum()),activation=arr(t.nodes[selected].x[0,c]),occupation=arr(selected_mass[0,c]) if defined else None) for c in range(min(t.nodes[selected].x.shape[1],64))]
@@ -109,13 +115,18 @@ def analyze(model,x,ref,spec,layer,channel,steps=16,gates=None,geometry=False,pr
     st=Measure(t,sink,'structural');result['structural_FieldA']=arr(st.node_mass(0)[0].sum(0));result['structural_logQ']=scalar(st.logQ);result['structural_status']='available' if st.logQ!=-math.inf else 'undefined: zero structural path energy'
     if geometry:
         progress('Computing topology reference and selected-subgraph distances')
-        top=Measure(t,sink,'topology');conv=next(n for n in t.nodes if n.name=='stem.conv');ch=channel if layer=='stem.relu' else 0;window=(conv.x.shape[-2]//2,conv.x.shape[-1]//2)
-        result['geometry']=embed_subgraph(geometry_edges(st,ch,window),geometry_edges(m,ch,window) if defined else None,geometry_edges(top,ch,window));result['geometry']['channel']=ch
+        top=Measure(t,sink,'topology')
+        if geometry=='operations':
+            result['geometry']=embed_subgraph(operation_edges(st),operation_edges(m) if defined else None,operation_edges(top),scope='Operation quotient: each edge sums full-model occurrence marginals. Distances belong to the quotient, not the scalar execution metric.',fit_hyperbolic=fit_hyperbolic)
+            result['geometry']['channel']=None
+        else:
+            conv=next(n for n in t.nodes if n.name=='stem.conv');ch=channel if layer=='stem.relu' else 0;window=(conv.x.shape[-2]//2,conv.x.shape[-1]//2)
+            result['geometry']=embed_subgraph(geometry_edges(st,ch,window),geometry_edges(m,ch,window) if defined else None,geometry_edges(top,ch,window),fit_hyperbolic=fit_hyperbolic);result['geometry']['channel']=ch
     else:result['geometry']=dict(status='not_requested')
     del st,m,t
     progress('Computing IG and native Grad-CAM')
     result.update(attributions(model,x,ref,spec,layer,steps,gates))
     with torch.no_grad():
         out=model(x,gates=gates);out0=model(ref,gates=gates)
-        result['prediction']=arr(out['classification'].softmax(1)[0]);result['reference_prediction']=arr(out0['classification'].softmax(1)[0]);result['mask_probability']=arr(out['segmentation'].sigmoid()[0,0]);result['reference_mask_probability']=arr(out0['segmentation'].sigmoid()[0,0])
+        result['prediction']=arr(out['classification'].softmax(1)[0]);result['reference_prediction']=arr(out0['classification'].softmax(1)[0]);result['mask_probability']=arr(out['segmentation'].sigmoid()[0,0]) if 'segmentation' in out else None;result['reference_mask_probability']=arr(out0['segmentation'].sigmoid()[0,0]) if 'segmentation' in out0 else None
     return result

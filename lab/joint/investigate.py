@@ -125,7 +125,7 @@ def analyze(model,x,ref,spec,layer,channel,steps=16,gates=None,geometry=False,fi
     import hashlib
     digest=hashlib.sha256()
     for name,p in model.state_dict().items():digest.update(name.encode());digest.update(p.detach().cpu().contiguous().numpy().tobytes())
-    result['provenance']=dict(parameter_hash=digest.hexdigest(),architecture_graph_hash=graph_hash(t),input_hash=digest_tensor(x),reference_hash=digest_tensor(ref),software_version='0.11.1',analysis_conventions=description(q),response_version='finite-dag-3',dtype=str(x.dtype),mode='eval',relu_equal_zero=0,maxpool_tie='lowest index',structural=q['structural_rule'],local_tolerance=1e-7*scale)
+    result['provenance']=dict(parameter_hash=digest.hexdigest(),architecture_graph_hash=graph_hash(t),input_hash=digest_tensor(x),reference_hash=digest_tensor(ref),software_version='0.11.2',analysis_conventions=description(q),response_version='finite-dag-3',dtype=str(x.dtype),mode='eval',relu_equal_zero=0,maxpool_tie='lowest index',structural=q['structural_rule'],local_tolerance=1e-7*scale)
     result['parameter_occurrence_groups']=[dict(operation=n.name,parameter_identity=e.kw['parameter_identity'],mass=m.branch_mass(i,k)) for i,n in enumerate(t.nodes[:sink+1]) for k,e in enumerate(n.edges) if 'parameter_identity' in e.kw]
     result['parameter_quotient_note']='Operation totals retain stable shared weight-tensor identity; sums over repeated uses are expected multiplicities, not necessarily probabilities. Scalar coordinates remain primitive.'
     result['source_summary']=source_summary(result['FieldA'])

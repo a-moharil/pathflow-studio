@@ -180,6 +180,15 @@ def analyze(model,x,x0,readout,gates=None,geometry_enabled=True):
         normalization='Unit total mass when defined; null when the partition vanishes.')
     from ..joint.interpret import source_summary
     out['source_summary']=source_summary(out['input_fields']['conditional'])
+    def layer_map(l,values):
+        shape=list(model.shapes[l+1]) if l+1<len(model.shapes) else [1]
+        values=np.asarray(values,float)
+        name='Readout aggregation' if l>=len(model.layers) else 'Output' if l==len(model.layers)-1 else f'Conv {l+1}' if type(model.layers[l]).__name__=='Conv2d' else f'Dense {l+1}'
+        return dict(layer=l,name=name,shape=shape,
+            native_absolute=values.reshape(shape).sum(0).tolist() if len(shape)==3 else None,
+            unit_absolute=values.tolist() if len(shape)==1 else None)
+    out['layer_fields']=[layer_map(l,np.bincount(v,weights=f,minlength=sizes[l+1])) for l,((u,v,w),f) in enumerate(zip(layers,Fc))] if c['defined'] else None
+
     bp=np.ones(1);bn=np.zeros(1);bs=np.ones(1)
     for l in reversed(range(len(layers))):
         u,v,w=layers[l];coef=w*sec[l][v];wp=np.maximum(coef,0);wn=np.maximum(-coef,0)
@@ -197,6 +206,9 @@ def analyze(model,x,x0,readout,gates=None,geometry_enabled=True):
         rm,rf=measure(sizes,layers,dx*dx*mask.ravel(),sec)
         mass=math.exp(rm['logZ']-c['logZ']) if rm['defined'] and c['defined'] else 0.
         out['source_region']=dict(region=region,source_mass=mass,status='available' if rm['defined'] else 'zero_region_mass',layers=[dict(layer=l,absolute_mass=(np.bincount(v,weights=f,minlength=sizes[l+1])*mass).tolist(),allocation=np.bincount(v,weights=f,minlength=sizes[l+1]).tolist() if rm['defined'] else None) for l,((u,v,w),f) in enumerate(zip(layers,rf))])
+        for row in out['source_region']['layers']:
+            row.update(layer_map(row['layer'],row['absolute_mass']))
+
     if geometry_enabled:
         S,sg,anchors=geometry(sizes,offset,layers,Fs,model.config['geometry_limit'],model.config['landmarks'],measurement_limit=model.config.get('measurement_limit',model.config['geometry_limit']));out['structural_geometry']=sg
         if c['defined']:

@@ -21,7 +21,7 @@ def region_analysis(measure,region):
     mass=math.exp(m.logQ-measure.logQ) if defined else 0.;rows=[]
     for i,node in enumerate(m.tape.nodes[:m.sink+1]):
         value=m.node_mass(i);native=value[0].sum(0) if value.ndim==4 else None
-        rows.append(dict(name=node.name,absolute_mass=float(value.sum())*mass,allocation=float(value.sum()) if defined else None,native_absolute=(native*mass).tolist() if native is not None else None,branches=[dict(absolute_mass=m.branch_mass(i,k)*mass,allocation=m.branch_mass(i,k) if defined else None) for k in range(len(node.parents))]))
+        rows.append(dict(name=node.name,absolute_mass=float(value.sum())*mass,allocation=float(value.sum()) if defined else None,native_absolute=(native*mass).tolist() if native is not None else None,shape=list(value.shape[1:]),unit_absolute=(value.flatten()*mass).tolist() if value.ndim!=4 else None,branches=[dict(absolute_mass=m.branch_mass(i,k)*mass,allocation=m.branch_mass(i,k) if defined else None) for k in range(len(node.parents))]))
     return dict(region=region,source_mass=mass,status='available' if defined else 'zero_region_mass',operations=rows,definition='Routes originating in selected source rectangle; absolute mass retains whole-network normalization; allocation conditions on region')
 
 def observables(m):

@@ -125,11 +125,17 @@ def analyze(model,x,ref,spec,layer,channel,steps=16,gates=None,geometry=False,fi
     import hashlib
     digest=hashlib.sha256()
     for name,p in model.state_dict().items():digest.update(name.encode());digest.update(p.detach().cpu().contiguous().numpy().tobytes())
-    result['provenance']=dict(parameter_hash=digest.hexdigest(),architecture_graph_hash=graph_hash(t),input_hash=digest_tensor(x),reference_hash=digest_tensor(ref),software_version='0.11.2',analysis_conventions=description(q),response_version='finite-dag-3',dtype=str(x.dtype),mode='eval',relu_equal_zero=0,maxpool_tie='lowest index',structural=q['structural_rule'],local_tolerance=1e-7*scale)
+    result['provenance']=dict(parameter_hash=digest.hexdigest(),architecture_graph_hash=graph_hash(t),input_hash=digest_tensor(x),reference_hash=digest_tensor(ref),software_version='0.11.3',analysis_conventions=description(q),response_version='finite-dag-3',dtype=str(x.dtype),mode='eval',relu_equal_zero=0,maxpool_tie='lowest index',structural=q['structural_rule'],local_tolerance=1e-7*scale)
     result['parameter_occurrence_groups']=[dict(operation=n.name,parameter_identity=e.kw['parameter_identity'],mass=m.branch_mass(i,k)) for i,n in enumerate(t.nodes[:sink+1]) for k,e in enumerate(n.edges) if 'parameter_identity' in e.kw]
     result['parameter_quotient_note']='Operation totals retain stable shared weight-tensor identity; sums over repeated uses are expected multiplicities, not necessarily probabilities. Scalar coordinates remain primitive.'
     result['source_summary']=source_summary(result['FieldA'])
     result['source_region']=region_analysis(m,source_region)
+    result['layer_fields']=[] if defined else None
+    if defined:
+        for name,i in capture.items():
+            values=m.node_mass(i)
+            result['layer_fields'].append(dict(name=name,shape=list(values.shape[1:]),native_absolute=arr(values[0].sum(0)) if values.ndim==4 else None,unit_absolute=arr(values.flatten()) if values.ndim!=4 else None))
+
     result['path_observables']=observables(m)
     result['audit']=dict(conditional=measure_audit(m))
     result['operation_occupation']=[dict(name=n.name,mass=float(m.node_mass(i).sum()),incoming=[m.branch_mass(i,k) for k in range(len(n.edges))]) for i,n in enumerate(t.nodes[:sink+1])]

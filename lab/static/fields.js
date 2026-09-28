@@ -1,11 +1,13 @@
 const sourcePicker=new SourceRegionPicker('sourcePicker',['sx0','sy0','sx1','sy1'],'sourceTrace','sourceCompute');
+const regionLab=new RegionExplorer(sourcePicker);
 /* Pixel coordinates, no image-space interpolation or invented field values. */
 const InputFields={
  data:null,
  render(d){this.data=d;const fields=d.input_fields;
  $('fieldContext').textContent=`Checkpoint ${d.step} · pair ${d.x} / ${d.reference} · scope ${d.scope} · readout ${JSON.stringify(d.readout)} · gates ${JSON.stringify(d.gates)}. ${d.scope==='all'?'All-output path mass; signed map sums output contrasts, not the a–b margin.':'Selected scalar readout.'}`;
- if(!fields){sourcePicker.update(null,null);$('fieldLegend').textContent='This saved result predates input fields. Analyze the checkpoint again.';for(const id of ['fieldStructural','fieldConditional'])$(id).getContext('2d').clearRect(0,0,280,280);return}
+ if(!fields){sourcePicker.update(null,null);regionLab.update(null,null,null,null,null);$('fieldLegend').textContent='This saved result predates input fields. Analyze the checkpoint again.';for(const id of ['fieldStructural','fieldConditional'])$(id).getContext('2d').clearRect(0,0,280,280);return}
  sourcePicker.update(fields.conditional,d.source_region);
+ regionLab.update(RegionExplorer.chw(d.investigation?.transformed_image),RegionExplorer.chw(d.investigation?.reference_image),fields.conditional,d.layer_fields,d.source_region);
  const max=$('fieldScale').value==='unit'?1:Math.max(...(fields.structural||[]).flat(),...(fields.conditional||[]).flat(),Number.MIN_VALUE);
  for(const [side,id] of [['structural','fieldStructural'],['conditional','fieldConditional']]){
  const canvas=$(id),ctx=canvas.getContext('2d'),a=fields[side];canvas.onpointermove=null;ctx.clearRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#091621';ctx.fillRect(0,0,canvas.width,canvas.height);

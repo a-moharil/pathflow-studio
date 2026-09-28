@@ -13,14 +13,18 @@ def load(root,c,download=False):
     if cache.exists():
         return _read_cache(str(cache))
     rng=np.random.default_rng(c['seed']);out={}
-    if c['dataset']=='synthetic':
+    if c['dataset'] in ['synthetic','synthetic-regression']:
         for split,n in [('train',c['train_size']),('val',64),('test',80)]:
             y=np.arange(n)%2;x=rng.normal(.1,.07,(n,1,28,28)).astype('float32')
             for i in range(n):
                 off=int(rng.integers(8,18))
                 if y[i]:x[i,0,off:off+3,:]+=.7
                 else:x[i,0,:,off:off+3]+=.7
-            out.update({split+'_x':np.clip(x,0,1),split+'_y':y.astype('int64'),split+'_ids':np.arange(n)})
+            x=np.clip(x,0,1)
+            # A deterministic image regression target with known regional mechanism.
+            if c['dataset']=='synthetic-regression':
+                y=(x[:,0,:,:14].mean((1,2))-x[:,0,:,14:].mean((1,2))).astype('float32')
+            out.update({split+'_x':x,split+'_y':y if c['dataset']=='synthetic-regression' else y.astype('int64'),split+'_ids':np.arange(n)})
     else:
         if c['dataset']=='fashion':
             from torchvision.datasets import FashionMNIST
@@ -55,10 +59,10 @@ def status(root,c):
             for split in ['train','val','test']:
                 x=data[split+'_x'];y=data[split+'_y']
                 if len(x)!=len(y) or x.shape[1:]!=(1,28,28) or not np.isfinite(x).all():raise ValueError('Prepared data failed shape/finite checks')
-                splits[split]={'count':len(y),'classes':np.bincount(y).tolist()}
+                splits[split]={'count':len(y),'target_range':[float(y.min()),float(y.max())]} if c['dataset']=='synthetic-regression' else {'count':len(y),'classes':np.bincount(y).tolist()}
             return {'state':'ready','splits':splits,'key':p.stem}
         except Exception as e:return {'state':'invalid','message':str(e),'key':p.stem}
-    if c['dataset']=='synthetic':return {'state':'prepare','message':'Generate deterministic synthetic data','key':p.stem}
+    if c['dataset'] in ['synthetic','synthetic-regression']:return {'state':'prepare','message':'Generate deterministic synthetic data','key':p.stem}
     folder=Path(root)/'datasets'
     if c['dataset']=='fashion':
         files=['train-images-idx3-ubyte','train-labels-idx1-ubyte','t10k-images-idx3-ubyte','t10k-labels-idx1-ubyte']

@@ -1,5 +1,5 @@
 {% extends 'base.html' %}{% block content %}
-<link rel="stylesheet" href="/static/healthcare.css?v=0.8.0"><link rel="stylesheet" href="/static/evidence.css?v=0.8.0">
+<link rel="stylesheet" href="/static/healthcare.css?v=0.11.1"><link rel="stylesheet" href="/static/evidence.css?v=0.11.1">
 <div id="healthContext" data-run="{{run.id}}"></div>
 <div class="titleRow"><div><p class="eyebrow">HEALTHCARE INVESTIGATION · RESEARCH</p><h1>{{run.config.name}}</h1><p>Compare predictions, trace image contributions and test computational dependence.</p></div><a class="button" id="backExperiment" href="/experiment/{{run.id}}">Training & geometry →</a></div>
 <section class="card"><div class="fields">
@@ -43,4 +43,4 @@
 </section>
 {% include 'evidence.html' %}
 <details class="card"><summary>Measured context and numerical audit</summary><pre id="hcAudit">No result loaded.</pre></details>
-{% endblock %}{% block scripts %}<script src="/static/healthcare.js?v=0.8.0"></script><script src="/static/evidence.js?v=0.8.0"></script><script src="/static/inspector.js?v=0.8.0"></script>{% endblock %}
+{% endblock %}{% block scripts %}<script src="/static/healthcare.js?v=0.11.1"></script><script src="/static/evidence.js?v=0.11.1"></script><script src="/static/inspector.js?v=0.11.1"></script>{% endblock %}

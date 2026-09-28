@@ -178,6 +178,25 @@ def analyze(model,x,x0,readout,gates=None,geometry_enabled=True):
         conditional=input_origin_field(layers[0][0],Fc[0],model.shapes[0],c['defined']),
         definition='Input-origin marginal of the normalized complete-path measure; channels summed.',
         normalization='Unit total mass when defined; null when the partition vanishes.')
+    from ..joint.interpret import source_summary
+    out['source_summary']=source_summary(out['input_fields']['conditional'])
+    bp=np.ones(1);bn=np.zeros(1);bs=np.ones(1)
+    for l in reversed(range(len(layers))):
+        u,v,w=layers[l];coef=w*sec[l][v];wp=np.maximum(coef,0);wn=np.maximum(-coef,0)
+        pp=np.bincount(u,weights=wp*bp[v]+wn*bn[v],minlength=sizes[l]);nn=np.bincount(u,weights=wp*bn[v]+wn*bp[v],minlength=sizes[l])
+        bs=np.bincount(u,weights=coef*bs[v],minlength=sizes[l]);bp,bn=pp,nn
+    pos=np.where(dx>=0,bp,bn)*abs(dx);neg=np.where(dx>=0,bn,bp)*abs(dx)
+    to_image=lambda z:z.reshape(model.shapes[0]).sum(0)
+    p,n=to_image(pos),to_image(neg);net=to_image(dx*bs);total=p+n
+    out['source_diagnostics']=dict(P=p.tolist(),N=n.tolist(),signed=net.tolist(),cancellation=np.divide(total-abs(net),total,out=np.full_like(total,-1),where=total>0).clip(-1,1).tolist(),signed_sum=float(net.sum()),scope='selected readout' if readout.get('scope')!='all' else 'sum of output contrasts; path mass is all-output scope')
+    region=model.config.get('source_region')
+    if region is not None:
+        xx0,yy0,xx1,yy1=map(int,region);h,w=model.shapes[0][-2:]
+        if not 0<=xx0<xx1<=w or not 0<=yy0<yy1<=h:raise ValueError('Source rectangle outside input')
+        mask=np.zeros(model.shapes[0]);mask[:,yy0:yy1,xx0:xx1]=1
+        rm,rf=measure(sizes,layers,dx*dx*mask.ravel(),sec)
+        mass=math.exp(rm['logZ']-c['logZ']) if rm['defined'] and c['defined'] else 0.
+        out['source_region']=dict(region=region,source_mass=mass,status='available' if rm['defined'] else 'zero_region_mass',layers=[dict(layer=l,absolute_mass=(np.bincount(v,weights=f,minlength=sizes[l+1])*mass).tolist(),allocation=np.bincount(v,weights=f,minlength=sizes[l+1]).tolist() if rm['defined'] else None) for l,((u,v,w),f) in enumerate(zip(layers,rf))])
     if geometry_enabled:
         S,sg,anchors=geometry(sizes,offset,layers,Fs,model.config['geometry_limit'],model.config['landmarks'],measurement_limit=model.config.get('measurement_limit',model.config['geometry_limit']));out['structural_geometry']=sg
         if c['defined']:

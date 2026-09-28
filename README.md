@@ -1,3 +1,11 @@
+# Pathflow Studio 0.11.0
+
+General design now offers MLP, CNN and residual models for classification/regression. Healthcare Investigation has its own domain entry. Small/custom residual builders and the ResNet-50 preset share the tensor response engine. CNN hidden dense heads are optional. Field A adds mass contours, explicit display scales, signed diagnostics and selected-source route tracing.
+
+Read `docs/RESIDUAL_FIELDS_14.md` for exact definitions, supported operators, compatibility and scope limits. Residual full scalar geometry is budgeted; the structural reference remains explicitly experimental. Use your existing working interpreter. No dependency changes are required.
+
+## Earlier release notes
+
 # Update 0.10.0
 
 Use Design experiment for MLP, CNN and ResNet. Architecture-specific controls appear inline. See docs/UNIFIED_RESNET_13.md for supported tasks, shared geometry and explicit scientific limits.

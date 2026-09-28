@@ -81,10 +81,17 @@ def analyze(rid):
     size=r['config']['size'];region=list(map(int,d.get('region',[0,0,size,size])))
     if len(region)!=4 or not 0<=region[0]<region[2]<=size or not 0<=region[1]<region[3]<=size:raise ValueError('Mask readout region must be a nonempty rectangle inside the image')
     d['region']=region
+    source=d.get('source_region')
+    if source is not None:
+        source=list(map(int,source))
+        if len(source)!=4 or not 0<=source[0]<source[2]<=size or not 0<=source[1]<source[3]<=size:raise ValueError('Source rectangle outside image')
+        d['source_region']=source
     d.update(kind='joint_analysis',checkpoint=step)
     steps=int(d.get('ig_steps',16));channel=int(d.get('channel',0));alpha=float(d.get('alpha',1));budget=float(d.get('memory_gib',4))
     if not 4<=steps<=128 or channel<0 or not 0<=alpha<=1 or not 1<=budget<=64:raise ValueError('Invalid analysis settings')
     if d.get('reference_type','dataset') not in ['dataset','zero']:raise ValueError('Invalid reference')
-    if d.get('geometry_scope','operations') not in ['operations','conv1']:raise ValueError('Invalid geometry scope')
+    if d.get('geometry_scope','operations') not in ['operations','conv1','scalar']:raise ValueError('Invalid geometry scope')
+    from .conventions import settings,VERSION
+    d['analysis_settings']=settings(d.get('analysis_settings'));d['analysis_version']=VERSION
     d.update(ig_steps=steps,channel=channel,alpha=alpha,memory_gib=budget)
     return jsonify(job=st.job(root(),d,rid))

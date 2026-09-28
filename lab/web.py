@@ -12,7 +12,9 @@ def root():return current_app.config['ROOT']
 @web.get('/')
 def index():return render_template('index.html')
 @web.get('/design')
-def design():return render_template('design.html',defaults=DEFAULT)
+def design():return render_template('design.html',defaults=DEFAULT,healthcare=request.args.get('domain')=='healthcare')
+@web.get('/healthcare')
+def healthcare_home():return render_template('healthcare_home.html')
 @web.get('/experiment/<rid>')
 def experiment(rid):
     with st.db(root()) as db:is_resnet=db.execute('SELECT 1 FROM joint_runs WHERE id=?',(rid,)).fetchone()

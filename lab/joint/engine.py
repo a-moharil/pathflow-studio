@@ -16,19 +16,33 @@ def init(root):
     (Path(root)/'joint').mkdir(exist_ok=True)
 
 def config(raw):
-    if raw.get('architecture','resnet50_joint')!='resnet50_joint':raise ValueError('Joint workspace supports the ResNet-50 encoder with parallel segmentation/classification heads')
-    c=dict(architecture='resnet50_joint',preset=str(raw.get('preset','custom')),name=str(raw.get('name','Joint healthcare experiment'))[:160],dataset=str(raw.get('dataset','bus-uclm-v1')),size=int(raw.get('size',256)),width=int(raw.get('width',32)),seed=int(raw.get('seed',17)),pretrained=bool(raw.get('pretrained',False)),freeze=bool(raw.get('freeze',False)),optimizer=raw.get('optimizer','Adam'),lr=float(raw.get('lr',.0001)),weight_decay=float(raw.get('weight_decay',.0001)),batch=int(raw.get('batch',2)),device=raw.get('device','cpu'),task=raw.get('task','joint'),class_weight=float(raw.get('class_weight',1)),mask_weight=float(raw.get('mask_weight',1)),dice_weight=float(raw.get('dice_weight',1)),save_every=int(raw.get('save_every',25)),evaluation_count=int(raw.get('evaluation_count',32)),checkpoint_metric=raw.get('checkpoint_metric','loss'))
-    if c['size'] not in [64,128,256,384,512] or c['width'] not in [16,32,64]:raise ValueError('Unsupported resolution/decoder width')
-    if c['optimizer'] not in ['Adam','SGD','RMSprop'] or c['device'] not in ['cpu','cuda'] or c['task'] not in ['joint','classification','segmentation']:raise ValueError('Invalid training configuration')
+    if raw.get('architecture','resnet50_joint') not in ['resnet50_joint','residual_small','residual_custom','resnet50']:raise ValueError('Unknown architecture')
+    c=dict(architecture=raw.get('architecture','resnet50_joint'),preset=str(raw.get('preset','custom')),name=str(raw.get('name','Joint healthcare experiment'))[:160],dataset=str(raw.get('dataset','bus-uclm-v1')),size=int(raw.get('size',256)),width=int(raw.get('width',32)),seed=int(raw.get('seed',17)),pretrained=bool(raw.get('pretrained',False)),freeze=bool(raw.get('freeze',False)),optimizer=raw.get('optimizer','Adam'),lr=float(raw.get('lr',.0001)),weight_decay=float(raw.get('weight_decay',.0001)),batch=int(raw.get('batch',2)),device=raw.get('device','cpu'),task=raw.get('task','joint'),class_weight=float(raw.get('class_weight',1)),mask_weight=float(raw.get('mask_weight',1)),dice_weight=float(raw.get('dice_weight',1)),save_every=int(raw.get('save_every',25)),evaluation_count=int(raw.get('evaluation_count',32)),checkpoint_metric=raw.get('checkpoint_metric','loss'))
+    if c['size'] not in [8,16,28,32,64,128,256,384,512] or c['width'] not in [16,32,64]:raise ValueError('Unsupported resolution/decoder width')
+    if c['optimizer'] not in ['Adam','SGD','RMSprop'] or c['device'] not in ['cpu','cuda'] or c['task'] not in ['joint','classification','segmentation','regression']:raise ValueError('Invalid training configuration')
     if not (1<=c['batch']<=32 and 1<=c['save_every']<=10000 and 0<=c['evaluation_count']<=10000 and 0<c['lr']<=1 and 0<=c['weight_decay']<=1):raise ValueError('Hyperparameters outside supported range')
     if any(not math.isfinite(c[k]) or not 0<=c[k]<=100 for k in ['class_weight','mask_weight','dice_weight']):raise ValueError('Invalid loss weights')
     if c['checkpoint_metric'] not in ['loss','accuracy','dice']:raise ValueError('Invalid checkpoint metric')
-    if c['task']=='classification' and c['checkpoint_metric']=='dice' or c['task']=='segmentation' and c['checkpoint_metric']=='accuracy':raise ValueError('Checkpoint criterion must measure a trained task')
+    if c['task'] in ['classification','regression'] and c['checkpoint_metric']=='dice' or c['task']=='segmentation' and c['checkpoint_metric']=='accuracy':raise ValueError('Checkpoint criterion must measure a trained task')
     if not 0<=c['seed']<2**32:raise ValueError('Seed must be an unsigned 32-bit integer')
     if (c['task']!='segmentation' and c['class_weight']<=0) or (c['task']!='classification' and c['mask_weight']+c['dice_weight']<=0):raise ValueError('Selected task must have positive loss weight')
     if not all(ch.isalnum() or ch in '-_' for ch in c['dataset']):raise ValueError('Invalid dataset key')
     c['classes']=int(raw.get('classes',3));c['classification_only']=bool(raw.get('classification_only',False))
-    if not 2<=c['classes']<=1000:raise ValueError('Class count outside 2..1000')
+    if not 1<=c['classes']<=1000:raise ValueError('Class count outside 2..1000')
+    if c['architecture']=='residual_small':
+        raw=dict(raw,stage_widths=[4,8,12],stage_depths=[1,1,1],branches=2,preactivation=False)
+    c['domain']=raw.get('domain','healthcare' if c['architecture']=='resnet50_joint' else 'general')
+    if c['architecture']!='resnet50_joint' and c['task'] not in ['classification','regression']:raise ValueError('Mask tasks belong to Healthcare Investigation')
+    if c['task']=='regression' and c['checkpoint_metric']!='loss':raise ValueError('Regression selects validation loss')
+    def ints(name,default):
+        v=raw.get(name,default);v=[int(x.strip()) for x in v.split(',')] if isinstance(v,str) else list(v)
+        if not 1<=len(v)<=8 or any(type(x)!=int or not 1<=x<=128 for x in v):raise ValueError('Invalid '+name)
+        return v
+    c.update(stage_widths=ints('stage_widths',[4,8,12]),stage_depths=ints('stage_depths',[1,1,1]),head_widths=ints('head_widths',[32,16]),activation=raw.get('activation','relu'),branches=int(raw.get('branches',2)),preactivation=raw.get('preactivation',False) in [True,'true'],hidden_head=raw.get('hidden_head',True) in [True,'true'],reduction=raw.get('reduction','gap'))
+    if len(c['stage_widths'])!=len(c['stage_depths']) or sum(c['stage_depths'])>32:raise ValueError('Stage widths and depths must match; maximum 32 blocks')
+    if c['activation'] not in ['relu','tanh'] or c['reduction'] not in ['gap','flatten'] or not 2<=c['branches']<=4:raise ValueError('Invalid residual configuration')
+    if c['architecture']=='resnet50' and c['activation']!='relu':raise ValueError('ResNet-50 preset uses ReLU')
+    if c['pretrained'] and c['architecture'] not in ['resnet50','resnet50_joint']:raise ValueError('Pretrained weights only available for ResNet-50')
     return c
 
 def get(root,rid):
@@ -44,14 +58,23 @@ def create(root,raw):
     c=config(raw);path=Path(root)/'joint_data'/c['dataset']/'manifest.json'
     if not path.exists():raise ValueError('Prepare or import this dataset first')
     d=json.loads(path.read_text());c['classes']=len(d['classes']);c['class_names']=d['classes'];c['has_masks']=d.get('has_masks',True)
-    if not c['has_masks'] and c['task']!='classification':raise ValueError('This dataset has no segmentation annotations; choose classification')
-    c['classification_only']=c['task']=='classification';rows=data.split(d,c['seed']);rid=uuid.uuid4().hex[:16];p=folder(root,rid);p.mkdir()
+    if not c['has_masks'] and c['task'] not in ['classification','regression']:raise ValueError('This dataset has no segmentation annotations')
+    if (c['task']=='regression') != (d.get('task')=='regression'):raise ValueError('Dataset target type and task differ')
+    if c['task']=='regression':c['classes']=1;c['class_names']=['left minus right mean intensity'];c['target_units']='input intensity difference'
+    c['classification_only']=c['task'] in ['classification','regression'];rows=data.split(d,c['seed']);rid=uuid.uuid4().hex[:16];p=folder(root,rid);p.mkdir()
     st.atomic_json(p/'data.json',dict(d,rows=rows));st.atomic_json(p/'history.json',[])
     with st.db(root) as db:db.execute('INSERT INTO joint_runs(id,config,status,created) VALUES(?,?,?,?)',(rid,json.dumps(c),'ready',time.time()))
     return rid
 
 def build(c,pretrained=False):
-    torch.manual_seed(c['seed']);m=JointModel(classes=c.get('classes',3),width=c['width'],pretrained=pretrained,classification_only=c.get('classification_only',False))
+    torch.manual_seed(c['seed'])
+    if c.get('architecture')!='resnet50_joint':
+        from .residual import ResidualModel
+        m=ResidualModel(c,pretrained)
+        if c['freeze']:
+            for name,p in m.named_parameters():p.requires_grad_('head' in name or '.fc.' in name)
+        return m
+    m=JointModel(classes=c.get('classes',3),width=c['width'],pretrained=pretrained,classification_only=c.get('classification_only',False))
     if c['freeze']:
         for p in m.encoder.parameters():p.requires_grad_(False)
     return m
@@ -82,6 +105,8 @@ def loadstate(root,r):
     state=dict(model=m,opt=opt,step=step);CACHE.clear();CACHE[rid]=state;return state
 
 def loss(out,y,mask,c):
+    if c['task']=='regression':
+        mse=F.mse_loss(out['classification'][:,0],y.to(out['classification'].dtype));return mse,dict(loss=float(mse.detach()),mse=float(mse.detach()))
     ce=F.cross_entropy(out['classification'],y)
     if 'segmentation' not in out:
         total=c['class_weight']*ce
@@ -98,7 +123,7 @@ def batch(rows,size,device):
 @torch.no_grad()
 def evaluate(m,rows,c,split="evaluation"):
     stage("Evaluating "+split)
-    m.eval();limit=c['evaluation_count'];selected=rows if not limit else rows[:limit];result={k:0. for k in (['loss','ce','accuracy'] if c.get('classification_only') else ['loss','ce','bce','dice_loss','accuracy','dice','iou'])}
+    m.eval();limit=c['evaluation_count'];selected=rows if not limit else rows[:limit];result={k:0. for k in (['loss','mse'] if c['task']=='regression' else ['loss','ce','accuracy'] if c.get('classification_only') else ['loss','ce','bce','dice_loss','accuracy','dice','iou'])}
     stage('Evaluating '+split,0,len(selected),'images')
     for start in range(0,len(selected),c['batch']):
         rr=selected[start:start+c['batch']];x,mask,y=batch(rr,c['size'],c['device']);out=m(x);_,v=loss(out,y,mask,c)
@@ -172,7 +197,7 @@ def tick(root,controls_only=False):
     if not r:return False
     try:
         run=get(root,r[0])
-        with task(root,f'ResNet-50 update {run["step"]+1} / {run["target"]}',run=r[0]):quantum(root,run)
+        with task(root,f'{run["config"].get("architecture","Residual")} update {run["step"]+1} / {run["target"]}',run=r[0]):quantum(root,run)
     except Exception:
         import traceback
         CACHE.pop(r[0],None)

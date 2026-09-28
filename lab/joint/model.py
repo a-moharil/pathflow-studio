@@ -53,7 +53,7 @@ class JointModel(nn.Module):
                     template=recorder.nodes[y].x if recorder is not None else y
                     factor=torch.ones((1,shape[1],1,1),dtype=template.dtype,device=template.device)
                     factor[:,channel]=alpha
-                    y=op(name+'.gate','gate',[y],factor=factor)
+                    y=recorder.attenuate(y,factor) if recorder is not None else y*factor
                 capture[name]=y
             return y
         def mod(name,m,z):return op(name,'module',[z],module=m)

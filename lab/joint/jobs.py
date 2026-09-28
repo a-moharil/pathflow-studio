@@ -37,18 +37,21 @@ def process(root,j):
         specs=[dict(head='classification',a=int(p.get('class_a',2)),b=None if int(p.get('class_b',0))<0 else int(p.get('class_b',0))),dict(head='segmentation',region=region)]
         if c.get('classification_only'):specs=specs[:1]
         progress('Checkpoint loaded; computing '+str(len(specs))+' readout(s)')
-        result=dict(version='joint-investigation-1',checkpoint=ck['step'],config=c,request=p,image=x[0].permute(1,2,0).tolist(),reference_image=ref[0].permute(1,2,0).tolist(),target=target[0].tolist() if c.get('has_masks',True) else None,label=label,case=rows[idx]['id'],reference_case='zero in raw [0,1] input coordinates' if zero else rows[refidx]['id'],reference_label=None if zero else rows[refidx]['label'],preprocessing=meta,estimated_memory_gib=estimated,heads={})
+        result=dict(version='joint-investigation-15',checkpoint=ck['step'],config=c,request=p,image=x[0].permute(1,2,0).tolist(),reference_image=ref[0].permute(1,2,0).tolist(),target=target[0].tolist() if c.get('has_masks',True) else None,label=label,case=rows[idx]['id'],reference_case='zero in raw [0,1] input coordinates' if zero else rows[refidx]['id'],reference_label=None if zero else rows[refidx]['label'],preprocessing=meta,estimated_memory_gib=estimated,heads={})
         for spec in specs:
-            result['heads'][spec['head']]=analyze(model,x,ref,spec,layer,channel,p['ig_steps'],geometry=p.get('geometry_scope','operations') if p.get('geometry',True) else False,fit_hyperbolic=bool(p.get('fit_hyperbolic',False)),progress=lambda msg,h=spec['head']:progress(h+': '+msg))
+            result['heads'][spec['head']]=analyze(model,x,ref,spec,layer,channel,p['ig_steps'],geometry=p.get('geometry_scope','operations') if p.get('geometry',True) else False,fit_hyperbolic=bool(p.get('fit_hyperbolic',False)),progress=lambda msg,h=spec['head']:progress(h+': '+msg),source_region=p.get('source_region'),analysis_settings=p.get('analysis_settings'))
+        layer=next(iter(result['heads'].values()))['selected_layer'];p['layer']=layer
         result['intervention']=None
         if alpha!=1:
             gates={layer:(channel,alpha)};post={}
-            for spec in specs:post[spec['head']]=analyze(model,x,ref,spec,layer,channel,p['ig_steps'],gates=gates,geometry=p.get('geometry_scope','operations') if p.get('geometry',True) else False,fit_hyperbolic=bool(p.get('fit_hyperbolic',False)),progress=lambda msg,h=spec['head']:progress('Intervened '+h+': '+msg))
+            for spec in specs:post[spec['head']]=analyze(model,x,ref,spec,layer,channel,p['ig_steps'],gates=gates,geometry=p.get('geometry_scope','operations') if p.get('geometry',True) else False,fit_hyperbolic=bool(p.get('fit_hyperbolic',False)),progress=lambda msg,h=spec['head']:progress('Intervened '+h+': '+msg),source_region=p.get('source_region'),analysis_settings=p.get('analysis_settings'))
+            for name,d in post.items():
+                d['post_selected_support_occupation']=d['FieldB'];d['FieldB']=result['heads'][name]['FieldB'];d['FieldB_scope']=result['heads'][name]['FieldB_scope']
             doses=[]
             with torch.no_grad():
                 for dose in [1.,.75,.5,.25,0.]:
                     out=model(x,gates={layer:(channel,dose)});out0=model(ref,gates={layer:(channel,dose)})
                     doses.append(dict(alpha=dose,**{s['head']:dict(value=float(readout_tensor(out,s)),reference_value=float(readout_tensor(out0,s)),delta=float(readout_tensor(out,s)-readout_tensor(out0,s))) for s in specs}))
-            result['intervention']=dict(layer=layer,channel=channel,alpha=alpha,semantics='Post-ReLU channel attenuation applied at both endpoints; Field B is baseline support, not post-intervention effect',heads=post,dose_response=doses)
+            result['intervention']=dict(layer=layer,channel=channel,alpha=alpha,semantics='Postactivation channel attenuation applied at both endpoints; Field B is baseline support, not post-intervention effect',heads=post,dose_response=doses)
     dest.mkdir(exist_ok=True,parents=True);path=dest/(j['id']+'.json');st.atomic_json(path,result)
     with st.db(root) as db:db.execute("UPDATE jobs SET status='completed',result=?,progress='Ready' WHERE id=?",(str(path),j['id']))

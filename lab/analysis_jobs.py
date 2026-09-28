@@ -27,8 +27,8 @@ def process_job(root,j):
         d=load(root,c,False);step=int(payload.get('step',r['step']));m,ck=restore(root,r,step)
         budget=int(payload.get('measurement_limit',c.get('measurement_limit',2500)))
         if not 50<=budget<=4000:raise ValueError('Measurement limit must be 50..4000')
-        m.config=dict(m.config,measurement_limit=budget)
-        a=int(payload.get('x',0));reference_type=payload.get('reference_type','dataset');b=int(payload.get('reference',1) or 0);readout=payload.get('readout',dict(a=0,b=1));gates=validate_gates(m,payload.get('gates',{}))
+        m.config=dict(m.config,measurement_limit=budget,source_region=payload.get('source_region'))
+        a=int(payload.get('x',0));reference_type=payload.get('reference_type','dataset');b=int(payload.get('reference',1) or 0);readout=payload.get('readout',dict(a=0,b=None if c.get('task')=='regression' else 1));gates=validate_gates(m,payload.get('gates',{}))
         if reference_type not in ['dataset','zero']:raise ValueError('Unknown reference type')
         if not 0<=a<len(d['test_x']) or (reference_type=='dataset' and not 0<=b<len(d['test_x'])):raise ValueError('Invalid contrast indices')
         if kind=='ensemble':
@@ -80,7 +80,7 @@ def process_job(root,j):
                 else:np.savez(frame_path,structural=structural)
             result['positions']=[entry.get('positions',result['euclidean']['dimensions']['3'][0]['positions']) for entry in result['euclidean']['dimensions']['3']]
             if gates:result['native']=analyze(m,tx,tr,readout,{},False)
-            result.update(analysis_version=6,reference_type=reference_type,transform=transform,measurement_settings=dict(limit=budget,epsilon=.03,estimator='bcan-1'),step=step,x=a,reference=None if reference_type=='zero' else b,labels=[int(d['test_y'][a]),None if reference_type=='zero' else int(d['test_y'][b])])
+            result.update(analysis_version=6,reference_type=reference_type,transform=transform,measurement_settings=dict(limit=budget,epsilon=.03,estimator='bcan-1'),step=step,x=a,reference=None if reference_type=='zero' else b,task=c.get('task','classification'),labels=[float(d['test_y'][a]),None if reference_type=='zero' else float(d['test_y'][b])])
             result['projection_diagnostics']={side:{dim:dict(entry[idx].get('heldout',{}),status=entry[idx].get('quality',entry[idx]['status'])) for dim,entry in result['euclidean']['dimensions'].items()} for idx,side in enumerate(['s','c'])}
             result['fit_settings']=dict(euclidean_max_iterations=fit_steps,diagnostic_dimensions=sensitivity,lorentz=payload.get('hyperbolic'),version='metric-fit-4')
             result['context']=dict(experiment=r['id'],checkpoint=step,x=a,reference_type=reference_type,reference=result['reference'],readout=readout,gates=gates,transform=transform,metric=result['metric'],representation=payload.get('hyperbolic'),analysis_version=6)

@@ -16,7 +16,8 @@ def metric_graph(data, side):
     mass=np.array([e[side] for e in data['edges']])
     lengths=np.array([e['length_'+side] for e in data['edges']]) if data['metric'].get('explicit_edge_lengths') else 1/(counts[layer[u]]*mass+data['metric']['epsilon'])
     if not np.isfinite(lengths).all() or np.any(lengths<=0):raise ValueError('Metric edge lengths must be finite and positive')
-    return coo_matrix((np.r_[lengths,lengths],(np.r_[u,v],np.r_[v,u])),shape=(n,n)).tocsr()
+    from .metricgraph import undirected_graph
+    return undirected_graph(n,u,v,lengths)
 
 
 def lorentz(space,k):

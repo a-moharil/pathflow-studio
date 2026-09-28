@@ -146,7 +146,7 @@ def synthetic(root):
 
 def prepare_classification(root,dataset,seed=42,train_size=512,progress=lambda s:None):
     from .. import datasets
-    if dataset not in ['fashion','pneumonia','synthetic']:raise ValueError('Unsupported classification dataset')
+    if dataset not in ['fashion','pneumonia','synthetic','synthetic-regression']:raise ValueError('Unsupported classification dataset')
     seed=int(seed);train_size=int(train_size)
     if not 0<=seed<2**32 or not 32<=train_size<=60000:raise ValueError('Invalid dataset seed or training subset')
     c=dict(dataset=dataset,seed=seed,train_size=train_size)
@@ -160,7 +160,7 @@ def prepare_classification(root,dataset,seed=42,train_size=512,progress=lambda s
         for x,y,idx in zip(values[split+'_x'],values[split+'_y'],values[split+'_ids']):
             path=folder/(str(int(idx))+'.png')
             if not path.exists():Image.fromarray(np.round(x[0]*255).astype('uint8')).save(path)
-            rows.append(dict(id=split+'-'+str(int(idx)),patient=split+'-'+str(int(idx)),image=str(path.resolve()),mask=None,label=int(y),split=split,mask_encoding=None,sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
+            rows.append(dict(id=split+'-'+str(int(idx)),patient=split+'-'+str(int(idx)),image=str(path.resolve()),mask=None,label=float(y) if dataset=='synthetic-regression' else int(y),split=split,mask_encoding=None,sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
             done+=1;stage('Preparing classification adapter',done,count,'images')
-    result=dict(name=dataset+' classification',classes=classes,rows=rows,has_masks=False,fixed_splits=True,source_dataset=dataset,source_seed=seed,train_size=train_size,label_rule='Dataset class labels; no mask annotations',preprocessing='Grayscale replicated into RGB, letterboxed to chosen model input size; ImageNet affine normalization inside model',split_policy='Existing dataset adapter splits and source indices retained; identifiers are image IDs, not patient claims')
+    result=dict(task='regression' if dataset=='synthetic-regression' else 'classification',name=dataset+' supervised task',classes=['intensity difference'] if dataset=='synthetic-regression' else classes,rows=rows,has_masks=False,fixed_splits=True,source_dataset=dataset,source_seed=seed,train_size=train_size,label_rule='Mean left half minus mean right half of original 28x28 input, intensity-difference units; image resampling does not change target' if dataset=='synthetic-regression' else 'Dataset class labels; no mask annotations',preprocessing='Grayscale replicated into RGB, letterboxed to chosen model input size; ImageNet affine normalization inside model',split_policy='Existing dataset adapter splits and source indices retained; identifiers are image IDs, not patient claims')
     atomic_json(dest/'manifest.json',result);return key,result

@@ -6,7 +6,7 @@ def test_catalog_visible_before_download(tmp_path):
     assert d['datasets']==[]
     assert [v['key'] for v in d['dataset_catalog']]==['bus-uclm-v1','synthetic']
     assert all(not v['ready'] for v in d['dataset_catalog'])
-    main=c.get('/design').get_data(as_text=True)
+    main=c.get('/design?domain=healthcare').get_data(as_text=True)
     assert 'value="resnet50_joint"' in main;assert 'value="bus-uclm-v1"' in main
     joint=c.get('/joint',follow_redirects=True).get_data(as_text=True)
     assert 'id="jointPreset"' in joint;assert 'id="jointArchitecture"' in joint

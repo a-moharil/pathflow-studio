@@ -5,3 +5,5 @@
 /* Keep image selection clear of the floating training toolbar in Fields. */
 body[data-studio-section="Fields"] .toolbar.sticky{position:static}
 .regionExplorer canvas{scroll-margin-top:100px}
+/* Update 18: explicit identity and probability legends. */
+.pairSelector{margin:14px 0;padding:12px;border:1px solid #c8d2df;border-radius:8px;background:#f6f8fc}.pairSelector p{margin:8px 0}.contourLegend{padding:8px}.contourLegend label,.layerToggles label,.layerTraceControls label{display:inline-flex;align-items:center;gap:6px;margin:5px 14px 5px 0}.colourSwatch{display:inline-block;width:20px;height:8px;border:1px solid #596b82}.layerCards{display:flex;flex-wrap:wrap;gap:16px;margin-top:14px}.layerCards article{border:1px solid #ccd5e2;border-radius:8px;padding:12px;max-width:310px}.layerCards h4{margin:0 0 10px}.layerCards p{font-size:12px}.layerToggles{max-height:170px;overflow:auto}.pairSelector select{max-width:100%}

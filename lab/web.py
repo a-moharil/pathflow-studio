@@ -88,8 +88,10 @@ def observations(rid):
     return jsonify([json.loads(r[0]) for r in rows])
 @web.get('/api/run/<rid>/dataset')
 def data_info(rid):
-    d=datasets.load(root(),st.run(root(),rid)['config'])
-    return jsonify({s:{'count':len(d[s+'_y']),'labels':d[s+'_y'].tolist(),'source_indices':d[s+'_ids'].tolist()} for s in ['train','val','test']})
+    config=st.run(root(),rid)['config'];d=datasets.load(root(),config)
+    result={s:{'count':len(d[s+'_y']),'labels':d[s+'_y'].tolist(),'source_indices':d[s+'_ids'].tolist()} for s in ['train','val','test']}
+    result['class_names']={'synthetic':['Vertical stripe','Horizontal stripe'],'fashion':['T-shirt/top','Trouser','Pullover','Dress','Coat','Sandal','Shirt','Sneaker','Bag','Ankle boot'],'pneumonia':['Normal','Pneumonia']}.get(config['dataset'],[])
+    return jsonify(result)
 @web.get('/api/run/<rid>/image/<int:i>')
 def image(rid,i):
     d=datasets.load(root(),st.run(root(),rid)['config'])

@@ -1,0 +1,10 @@
+const assert=require('assert');const Pair=require('../lab/static/pair_selector.js');
+const labels=[0,1,0,1,0,1];
+let current=1;const seen=[];for(let k=0;k<3;k++){current=Pair.next(labels,0,current,'same');seen.push(current);assert.equal(labels[current],labels[0]);assert.notEqual(current,0)}assert.deepEqual(seen,[2,4,2]);
+current=2;const cross=[];for(let k=0;k<4;k++){current=Pair.next(labels,0,current,'cross');cross.push(current);assert.notEqual(labels[current],labels[0])}assert.deepEqual(cross,[1,3,5,1]);
+assert.throws(()=>Pair.next([0,0],0,1,'cross'),/No distinct/);
+assert.throws(()=>Pair.next([0,1],0,1,'cross'),/already selected/);
+assert.throws(()=>Pair.next([0],0,0,'same'),/No distinct/);
+assert.throws(()=>Pair.next(labels,8,0,'same'),/available/);
+const y=[0,.1,.2,.7,.9];assert.deepEqual(Pair.candidates(y,0,'same',true),[1,2]);assert.deepEqual(Pair.candidates(y,0,'cross',true),[4,3]);assert.equal(Pair.next(y,0,1,'same',true),2);assert.equal(Pair.next(y,0,4,'cross',true),3);
+console.log('Selection policy checks passed: classification cycling, no match, singleton, regression pools.');

@@ -13,5 +13,5 @@ def test_selector_catalog(tmp_path,dataset):
     assert d['class_names']==(['Vertical stripe','Horizontal stripe'] if dataset=='synthetic' else [])
     page=client.get('/experiment/'+rid).get_data(as_text=True)
     assert '<select id="x"' in page and '<select id="reference"' in page
-    assert 'pair_selector.js?v=0.11.4' in page
+    assert 'pair_selector.js?v=0.12.0' in page
     assert client.get('/design').status_code==200

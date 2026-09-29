@@ -39,8 +39,9 @@ def process(root,job):
     if not np.isfinite(threshold) or not 0<=threshold<=1:raise ValueError('Threshold must be 0..1')
     original=X[x];reference=np.zeros_like(original) if reference_type=='zero' else X[r]
     context=dict(experiment=run['id'],dataset=config['dataset'],architecture=config,checkpoint=step,split=split,x=x,x_source_index=int(ids[x]),reference_type=reference_type,reference=r if reference_type=='dataset' else None,reference_source_index=int(ids[r]) if reference_type=='dataset' else None,readout=readout,transform=transform,healthcare_version=1,analysis_core_version=6,threshold=threshold)
-    report=dict(context=context,class_names=['Normal','Pneumonia'] if config['dataset']=='pneumonia' else ['Class 0','Class 1'],kind=p['kind'],research_scope='Model computation on benchmark images. Fields are not lesion segmentations; probabilities are uncalibrated model outputs.')
+    report=dict(request=p,workflow_version=19,context=context,class_names=['Normal','Pneumonia'] if config['dataset']=='pneumonia' else ['Class 0','Class 1'],kind=p['kind'],research_scope='Model computation on benchmark images. Fields are not lesion segmentations; probabilities are uncalibrated model outputs.')
     if p['kind']=='healthcare_evidence':
+        if transform!=specification():raise ValueError('Attribution/support investigations require the original input pair. Reset the case transform explicitly; use the transformation sweep for field movement.')
         from .evidence_jobs import run as evidence_run
         report['evidence']=evidence_run(model,original,reference,readout,p,lambda message:st.progress(root,job['id'],message),X)
         report['labels']=[int(Y[x]),None if reference_type=='zero' else int(Y[r])]
@@ -76,6 +77,12 @@ def process(root,job):
         usable=[row for row in rows if row['status']=='available']
         report.update(metrics=metrics,predictions=[dict(x=i,source_index=int(ids[i]),label=int(Y[i]),probability=float(probability[i]),predicted=int(probability[i]>=threshold)) for i in range(len(X))],rows=rows,groups=group_summary(usable),sampling=dict(seed=604,requested=size,selected=len(sample),available=len(usable),policy=policy,population=len(X),interval_unit='Image-level bootstrap; repeated references and unknown patient identities limit independence. Intervals on pair-derived observables are exploratory.'),context=dict({k:v for k,v in context.items() if k not in ['x','x_source_index','reference','reference_source_index','reference_type']},cohort_reference=policy,cohort_size=size))
     else:
+        region=p.get('source_region')
+        if region is not None:
+            if not isinstance(region,list) or len(region)!=4 or any(type(v) is not int for v in region):raise ValueError('Source region must contain four integer pixel bounds')
+            x0,y0,x1,y1=region
+            if not (0<=x0<x1<=original.shape[-1] and 0<=y0<y1<=original.shape[-2]):raise ValueError('Source region is outside the analyzed input')
+            model.config=dict(model.config,source_region=region)
         st.progress(root,job['id'],'Computing exact baseline fields')
         base=case_analysis(model,original,reference,readout)
         tx=image(original,transform);tr=image(reference,transform)

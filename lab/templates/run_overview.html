@@ -3,13 +3,13 @@
 <div id="overviewContext" data-run="{{rid}}" data-engine="{{engine}}"></div>
 <div class="titleRow">
   <div>
-    <p class="eyebrow">EXPERIMENT OVERVIEW</p>
+    <p class="eyebrow">RUN · OVERVIEW</p>
     <h1>{{config.name}}</h1>
     <p id="ovState">Loading recorded state…</p>
   </div>
   <div class="toolbar">
-    <a class="button" href="/run/{{rid}}/statistics">Statistics</a>
-    <a class="button primary" href="/experiment/{{rid}}">Open training</a>
+    <a class="button" href="/run/{{rid}}/evidence" data-carry-case>Evidence</a>
+    <a class="button primary" href="/run/{{rid}}/geometry" data-carry-case>Open latest case</a>
   </div>
 </div>
 
@@ -32,7 +32,7 @@
 </div>
 
 <section class="card">
-  <h2>Views of this experiment</h2>
+  <h2>Stages of this run</h2>
   <div id="ovViews" class="viewGrid"></div>
 </section>
 
@@ -45,6 +45,6 @@
 </details>
 {% endblock %}
 {% block scripts %}
-<script src="/static/stats_ui.js?v=0.14.0"></script>
-<script src="/static/overview.js?v=0.14.0"></script>
+<script src="/static/stats_ui.js?v=0.16.1"></script>
+<script src="/static/overview.js?v=0.16.1"></script>
 {% endblock %}

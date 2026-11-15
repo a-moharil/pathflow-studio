@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="titleRow">
+  <div>
+    <p class="eyebrow">WORKSPACE · QUEUE</p>
+    <h1>Queue</h1>
+    <p>Every measurement the studio has been asked for, newest first. One local worker runs them in order. Completed work opens in its stage without recomputation.</p>
+  </div>
+</div>
+<section class="card ledgerCard">
+  <div class="queueSummary" id="queueSummary" aria-live="polite"></div>
+  <div class="fields compact">
+    <label>Status
+      <select id="queueStatus"><option value="">All</option><option value="active">Queued and running</option><option value="completed">Completed</option><option value="failed">Failed or cancelled</option></select>
+    </label>
+    <label>Search <input id="queueSearch" placeholder="Experiment, kind or case"></label>
+  </div>
+  <div id="queueTable" class="tableWrap"></div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  let rows = [];
+  const when = t => new Date(t * 1000).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  const kindName = k => ({ analysis: 'Geometry and fields', dose: 'Dose scan', ensemble: 'Pair ensemble', joint_analysis: 'Residual investigation',
+    healthcare_case: 'Clinical case', healthcare_dose: 'Clinical dose', healthcare_evidence: 'Clinical evidence', healthcare_cohort: 'Clinical cohort',
+    ruler_sensitivity: 'Ruler sensitivity', prepare: 'Dataset preparation', joint_data: 'Dataset preparation' }[k] || k);
+  function render() {
+    const status = $('queueStatus').value, q = $('queueSearch').value.toLowerCase();
+    const keep = rows.filter(r => (!status || (status === 'active' ? ['queued', 'running'].includes(r.status) : status === 'failed' ? ['failed', 'cancelled'].includes(r.status) : r.status === status))
+      && [r.run_name, r.kind, kindName(r.kind), r.label].join(' ').toLowerCase().includes(q));
+    const table = document.createElement('table');
+    table.innerHTML = '<thead><tr><th>Requested</th><th>Experiment</th><th>Work</th><th>Case</th><th>Status</th><th></th></tr></thead>';
+    const body = document.createElement('tbody');
+    for (const r of keep) {
+      const tr = document.createElement('tr');
+      const td = text => { const c = document.createElement('td'); c.textContent = text ?? '—'; return c; };
+      const state = document.createElement('td');
+      const pill = document.createElement('span');
+      pill.className = 'statusPill';
+      pill.dataset.status = r.status;
+      pill.textContent = r.status;
+      state.append(pill);
+      if (r.status === 'running' && r.progress) state.append(' ', r.progress);
+      if (r.error && ['failed', 'cancelled'].includes(r.status)) { const s = document.createElement('small'); s.className = 'help'; s.textContent = ' ' + r.error; state.append(s); }
+      const open = document.createElement('td');
+      if (r.open) { const a = document.createElement('a'); a.className = 'button'; a.href = r.open; a.textContent = 'Open'; open.append(a); }
+      const exp = td(r.run_name || (r.run ? r.run : 'Workspace'));
+      exp.className = 'num';
+      tr.append(td(when(r.created)), exp, td(kindName(r.kind)), td(r.label), state, open);
+      body.append(tr);
+    }
+    table.append(body);
+    $('queueTable').replaceChildren(table);
+    if (!keep.length) $('queueTable').append(rows.length ? 'Nothing matches this filter.' : 'No work has been requested yet.');
+  }
+  async function refresh() {
+    const d = await api('/api/queue?limit=300');
+    rows = d.jobs;
+    const c = d.counts, age = d.heartbeat ? (Date.now() / 1000 - d.heartbeat) : null;
+    $('queueSummary').innerHTML = '';
+    for (const [label, value] of [['Running', c.running || 0], ['Queued', c.queued || 0], ['Completed', c.completed || 0], ['Failed', (c.failed || 0) + (c.cancelled || 0)]]) {
+      const k = document.createElement('div'); k.className = 'figure';
+      k.innerHTML = `<span class="figureLabel"></span><strong class="figureValue"></strong>`;
+      k.querySelector('.figureLabel').textContent = label; k.querySelector('.figureValue').textContent = value.toLocaleString('en-GB');
+      $('queueSummary').append(k);
+    }
+    const w = document.createElement('p'); w.className = 'help';
+    w.textContent = age === null ? 'Worker has not reported yet.' : age < 10 ? 'Worker is running.' : `Worker last reported ${Math.round(age)} s ago.`;
+    $('queueSummary').append(w);
+    render();
+    return (c.queued || 0) + (c.running || 0) > 0;
+  }
+  $('queueStatus').onchange = render;
+  $('queueSearch').oninput = render;
+  Poller.every(() => refresh().catch(e => { showError(e); return false; }), { active: 2500, idle: 12000 });
+})();
+</script>
+{% endblock %}

@@ -48,19 +48,24 @@ def describe_run(root, rid):
 
 
 def tabs_for(rid: str, engine: str, config: dict) -> list[dict]:
-    tabs = [dict(key='overview', label='Overview', href=f'/run/{rid}')]
-    tabs.append(dict(key='training', label='Training', href=f'/experiment/{rid}?section=Training'))
-    if engine == 'native':
-        tabs.append(dict(key='geometry', label='Geometry', href=f'/experiment/{rid}?section=Geometry'))
-        tabs.append(dict(key='observatory', label='Observatory', href=f'/observatory/{rid}'))
-        if config.get('dataset') in HEALTHCARE_DATASETS:
-            tabs.append(dict(key='healthcare', label='Healthcare', href=f'/healthcare/{rid}'))
-    else:
-        tabs.append(dict(key='geometry', label='Geometry', href=f'/experiment/{rid}?section=geometry'))
-        tabs.append(dict(key='investigation', label='Investigation', href=f'/experiment/{rid}?section=fieldsPanel'))
-        tabs.append(dict(key='observatory', label='Observatory', href=f'/experiment/{rid}?section=resnetObservatory'))
-    tabs.append(dict(key='statistics', label='Statistics', href=f'/run/{rid}/statistics'))
-    tabs.append(dict(key='auditor', label='ECML auditor', href=f'/auditor?run={rid}'))
+    """The stage rail of a run, grouped as Run · Case · Accountability.
+
+    Canonical addresses are ``/run/<rid>/<stage>``; they resolve to the pages that hold
+    each view, so older page addresses keep working. Healthcare is not a stage: for binary
+    native runs it is offered as the Clinical reading of the same case.
+    """
+    tabs = [dict(key='overview', label='Overview', group='Run', href=f'/run/{rid}'),
+            dict(key='training', label='Training', group='Run', href=f'/run/{rid}/training'),
+            dict(key='geometry', label='Geometry', group='Case', href=f'/run/{rid}/geometry',
+                 hint='Structural disposition and conditional realisation'),
+            dict(key='realisation', label='Realisation', group='Case', href=f'/run/{rid}/realisation',
+                 hint='Field A over the contrast, routes and transformations'),
+            dict(key='observables', label='Observables', group='Case', href=f'/run/{rid}/observables',
+                 hint='Path observables across checkpoints'),
+            dict(key='evidence', label='Evidence', group='Accountability', href=f'/run/{rid}/evidence'),
+            dict(key='audit', label='Audit', group='Accountability', href=f'/run/{rid}/audit')]
+    if engine == 'native' and config.get('dataset') in HEALTHCARE_DATASETS:
+        tabs.append(dict(key='clinical', label='Clinical reading', group='Lens', href=f'/run/{rid}/clinical'))
     return tabs
 
 
@@ -68,12 +73,12 @@ def active_tab(endpoint: str | None) -> str | None:
     section = (request.args.get('section') or '').lower()
     return {
         'stats.overview': 'overview',
-        'stats.run_statistics': 'statistics',
-        'web.observatory': 'observatory',
-        'web.healthcare_page': 'healthcare',
-        'auditor.page': 'auditor',
-        'web.experiment': {'geometry': 'geometry', 'fields': 'geometry', 'fieldspanel': 'investigation',
-                           'resnetobservatory': 'observatory'}.get(section, 'training'),
+        'stats.run_statistics': 'evidence',
+        'web.observatory': 'observables',
+        'web.healthcare_page': 'clinical',
+        'auditor.page': 'audit',
+        'web.experiment': {'geometry': 'geometry', 'fields': 'realisation', 'fieldspanel': 'realisation',
+                           'resnetobservatory': 'observables'}.get(section, 'training'),
     }.get(endpoint or '')
 
 
@@ -91,4 +96,5 @@ def context_processor():
     return dict(run_nav=dict(
         rid=rid, engine=engine, name=config.get('name', rid), status=run.get('status'), step=run.get('step'),
         family=family, dataset=config.get('dataset'), optimizer=config.get('optimizer'),
-        tabs=tabs_for(rid, engine, config), active=active_tab(request.endpoint)))
+        tabs=tabs_for(rid, engine, config), active=active_tab(request.endpoint),
+        healthcare=engine == 'native' and config.get('dataset') in HEALTHCARE_DATASETS))

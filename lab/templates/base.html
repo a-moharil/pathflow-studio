@@ -1,37 +1,42 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-GB">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="csrf" content="{{session.csrf}}">
   <title>{% if run_nav %}{{run_nav.name}} · {% endif %}Pathflow Studio</title>
-  <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="/static/studio.css?v=0.14.0">
-  <link rel="stylesheet" href="/static/workspace.css?v=0.14.0">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%230E1A2B'/%3E%3Cpath d='M3 11 C6 4, 10 12, 13 5' stroke='%237FA6BF' stroke-width='1.6' fill='none'/%3E%3Ccircle cx='13' cy='5' r='1.4' fill='%23C8102E'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/studio.css?v=0.16.0">
+  <link rel="stylesheet" href="/static/workspace.css?v=0.16.1">
+  <link rel="stylesheet" href="/static/atelier.css?v=0.16.1">
 </head>
 {# Asset tiers: minimal (registry, hubs) · charts (Plotly views) · full (geometry and field workbenches). #}
 {% set tier = assets|default('full') %}
 <body data-assets="{{tier}}" data-presentation="{{ 'on' if presentation else 'off' }}">
-<header>
-  <a href="/" class="brand">PATHFLOW <span>STUDIO</span> <small>{{studio_version}}</small></a>
+<header class="masthead">
+  <a href="/" class="brand"><span class="brandMark" aria-hidden="true"></span>PATHFLOW <span>STUDIO</span> <small>{{studio_version}}</small></a>
   <nav aria-label="Studio">
-    <a href="/" {% if request.path == '/' %}aria-current="page"{% endif %}>Experiments</a>
-    <a href="/design" {% if request.path.startswith('/design') %}aria-current="page"{% endif %}>Design</a>
-    <a href="/healthcare" {% if request.path == '/healthcare' %}aria-current="page"{% endif %}>Healthcare</a>
-    <a href="/statistics" {% if request.path in ('/statistics', '/auditor') and not run_nav %}aria-current="page"{% endif %}>Statistics</a>
-    <button type="button" id="presentationToggle" class="presentationToggle" aria-pressed="{{ 'true' if presentation else 'false' }}" title="Presentation mode: no new computations are submitted; saved results remain browsable">Presentation</button>
+    <a href="/" {% if request.path == '/' %}aria-current="page"{% endif %}>Library</a>
+    <a href="/design" {% if request.path.startswith('/design') %}aria-current="page"{% endif %}>Build</a>
+    <a href="/queue" {% if request.path == '/queue' %}aria-current="page"{% endif %}>Queue <span id="queueBadge" class="queueBadge" hidden></span></a>
+    <a href="/statistics" {% if request.path in ('/statistics', '/auditor') and not run_nav %}aria-current="page"{% endif %}>Evidence</a>
   </nav>
+  <button type="button" id="presentationToggle" class="presentationToggle" aria-pressed="{{ 'true' if presentation else 'false' }}" title="Present: saved results only. No new computation is submitted anywhere in the studio while this is on.">Present</button>
 </header>
 {% if run_nav %}
-<div class="runBar" id="runBar" data-run="{{run_nav.rid}}" data-engine="{{run_nav.engine}}">
+<div class="runBar contextBar" id="runBar" data-run="{{run_nav.rid}}" data-engine="{{run_nav.engine}}" data-healthcare="{{ '1' if run_nav.healthcare else '0' }}">
   <div class="runIdentity">
-    <span class="runEngine">{{ 'MLP / CNN' if run_nav.engine == 'native' else 'Residual DAG' }}</span>
+    <a class="crumb" href="/">Library</a><span class="crumbSep" aria-hidden="true">›</span>
     <a class="runName" href="/run/{{run_nav.rid}}">{{run_nav.name}}</a>
+    <span class="runEngine">{{ 'MLP / CNN' if run_nav.engine == 'native' else 'Residual DAG' }}</span>
     <span class="runMeta">{{run_nav.dataset}} · {{run_nav.family}}{% if run_nav.optimizer %} · {{run_nav.optimizer}}{% endif %}</span>
     <span class="runStatus" id="runBarStatus" data-status="{{run_nav.status}}">{{run_nav.status}} · update {{run_nav.step}}</span>
+    <span class="caseChip" id="caseChip" hidden><span class="caseKey">Case</span><span id="caseText"></span><button type="button" id="caseClear" aria-label="Release this case">×</button></span>
   </div>
-  <nav class="runTabs" aria-label="Experiment views">
-    {% for tab in run_nav.tabs %}<a href="{{tab.href}}" data-tab="{{tab.key}}" {% if tab.key == run_nav.active %}aria-current="page"{% endif %}>{{tab.label}}</a>{% endfor %}
+  <nav class="runTabs stageRail" aria-label="Experiment stages">
+    {% for group in ['Run', 'Case', 'Accountability', 'Lens'] %}{% set members = run_nav.tabs|selectattr('group', 'equalto', group)|list %}{% if members %}
+    <span class="railGroup" data-group="{{group}}"><span class="railLabel">{{ 'Reading' if group == 'Lens' else group }}</span>{% for tab in members %}<a href="{{tab.href}}" data-tab="{{tab.key}}" {% if tab.hint %}title="{{tab.hint}}"{% endif %} {% if tab.key == run_nav.active %}aria-current="page"{% endif %}>{{tab.label}}</a>{% endfor %}</span>
+    {% endif %}{% endfor %}
   </nav>
 </div>
 {% endif %}
@@ -45,6 +50,7 @@
   </section>
   {% block content %}{% endblock %}
 </main>
+<footer class="colophon"><span>Pathflow Studio {{studio_version}}</span><span>Exact path measures · recorded conventions · reproducible states</span></footer>
 {% if tier != 'minimal' %}<script src="/static/vendor/plotly.min.js?v=0.12.0"></script>{% endif %}
 <script src="/static/api.js?v=0.14.0"></script>
 <script src="/static/poller.js?v=0.14.0"></script>
@@ -52,12 +58,12 @@
 <script src="/static/source_region.js?v=0.12.0"></script>
 <script src="/static/pair_selector.js?v=0.12.0"></script>
 <script src="/static/field_controls.js?v=0.12.0"></script>
-<script src="/static/region_explorer.js?v=0.12.0"></script>
+<script src="/static/region_explorer.js?v=0.15.1"></script>
 {% endif %}
-{% if tier != 'minimal' %}<script src="/static/charts.js?v=0.12.0"></script>{% endif %}
+{% if tier != 'minimal' %}<script src="/static/charts.js?v=0.16.1"></script>{% endif %}
 <script src="/static/progress.js?v=0.14.0"></script>
-<script src="/static/auditor_link.js?v=1"></script>
-<script src="/static/workspace.js?v=0.14.0"></script>
+<script src="/static/case.js?v=0.16.1"></script>
+<script src="/static/workspace.js?v=0.16.1"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -9,7 +9,7 @@ def test_region_provenance_and_transform_guard(tmp_path):
     app=create_app(tmp_path);c=validate(dict(model='mlp',widths=[3,2],activation='tanh',train_size=32,updates=1,checkpoint_every=1,geometry_every=0));datasets.prepare(tmp_path,c);rid=st.create(tmp_path,c)
     with st.db(tmp_path) as db:db.execute("UPDATE runs SET status='training' WHERE id=?",(rid,))
     quantum(tmp_path,st.run(tmp_path,rid));cp=tmp_path/rid/'checkpoint_00000001.pt';before=cp.read_bytes();client=app.test_client();html=client.get('/healthcare/'+rid).text
-    assert 'hwMount' in html and 'health_workflow.js?v=0.12.0' in html
+    assert 'hwMount' in html and 'health_workflow.js?v=' in html
     with client.session_transaction() as s:token=s['csrf']
     base=dict(kind='healthcare_case',step=1,x=0,reference=1,reference_type='dataset',split='test')
     def submit(p):

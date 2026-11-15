@@ -95,3 +95,53 @@ def analyze(rid):
     d['analysis_settings']=settings(d.get('analysis_settings'));d['analysis_version']=VERSION
     d.update(ig_steps=steps,channel=channel,alpha=alpha,memory_gib=budget)
     return jsonify(job=st.job(root(),d,rid))
+
+
+_estimates: dict = {}
+
+
+@web.post('/api/joint/estimate')
+def estimate():
+    """Work estimate for a residual configuration before it is created.
+
+    Builds the network on the CPU with random weights (never downloading pretrained
+    weights) and counts parameters and the activation units of one forward pass. The
+    path analysis itself runs on the operation quotient or a bounded occurrence subgraph,
+    so these counts size the network, not the analysis carrier.
+    """
+    import torch
+    raw = dict(request.get_json() or {})
+    c = engine.config(dict(raw, pretrained=False))
+    manifest = Path(root()) / 'joint_data' / c['dataset'] / 'manifest.json'
+    if manifest.exists():
+        d = json.loads(manifest.read_text())
+        c['classes'] = 1 if c['task'] == 'regression' else len(d['classes'])
+        c['classification_only'] = c['task'] in ['classification', 'regression']
+    skip = {'name', 'seed', 'lr', 'weight_decay', 'optimizer', 'batch', 'save_every', 'evaluation_count',
+            'checkpoint_metric', 'class_weight', 'mask_weight', 'dice_weight', 'device', 'pretrained', 'freeze', 'preset'}
+    key = json.dumps({k: v for k, v in c.items() if k not in skip}, sort_keys=True)
+    if key not in _estimates:
+        model = engine.build(c, pretrained=False).eval()
+        parameters = sum(p.numel() for p in model.parameters())
+        counts = dict(units=0, operations=0)
+
+        def hook(_module, _inputs, output):
+            tensors = output.values() if isinstance(output, dict) else output if isinstance(output, (tuple, list)) else [output]
+            for t in tensors:
+                if torch.is_tensor(t):
+                    counts['units'] += int(t[0].numel())
+            counts['operations'] += 1
+
+        handles = [m.register_forward_hook(hook) for m in model.modules() if not list(m.children())]
+        try:
+            with torch.no_grad():
+                model(torch.zeros(1, 3, c['size'], c['size']))
+        finally:
+            for h in handles:
+                h.remove()
+        _estimates[key] = dict(parameters=int(parameters), activation_units=counts['units'], operations=counts['operations'],
+                               blocks=sum(c['stage_depths']) if c['architecture'] != 'resnet50_joint' else None,
+                               size=c['size'], architecture=c['architecture'])
+        if len(_estimates) > 64:
+            _estimates.pop(next(iter(_estimates)))
+    return jsonify(_estimates[key])

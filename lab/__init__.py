@@ -36,4 +36,6 @@ def create_app(root=None):
     stats_index.init(root)
     app.register_blueprint(stats_web)
     app.context_processor(run_navigation)
+    from .cases import web as cases_web
+    app.register_blueprint(cases_web)
     return app

@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block content %}
 <link rel="stylesheet" href="/static/auditor.css?v=1">
-<div class="titleRow"><div><div class="eyebrow">ECML MANUSCRIPT · EVIDENCE WORKSPACE</div><h1>Structural and geometric audit</h1></div><a id="returnInvestigation" class="button" hidden>Return to investigation</a></div>
+<div class="titleRow"><div><div class="eyebrow">AUDIT · MANUSCRIPT EVIDENCE</div><h1>Structural and geometric audit</h1></div><a id="returnInvestigation" class="button" hidden>Return to investigation</a></div>
 <p class="auditIntro">Read the organisation of a recorded computation, inspect its numerical fidelity, and compare a declared population. Every statement remains attached to its measured carrier and condition.</p>
 <section class="card auditSelection" aria-label="Recorded investigation selection">
 <div class="fields"><label>Experiment filter<select id="auditRun"><option value="">All experiments</option></select></label><label class="recordLabel">Completed investigation<select id="auditRecord"><option value="">Select a recorded result</option></select></label><button id="auditRefresh">Refresh records</button><button id="auditExport" disabled>Export evidence JSON</button></div>
@@ -27,4 +27,4 @@
 <article class="card"><h2>Scope and provenance</h2><ul id="auditLimitations"></ul><details><summary>Recorded context, configuration and content hash</summary><pre id="auditProvenance"></pre></details><details><summary>Relationship to the manuscript</summary><p>Equations (3–4): effective occupancy and entropy deficit. Theorems 3–4: exact summation and cut conservation. Section 3.4 and Appendix C.10: declared metric and finite-window criteria. Appendix D: population design and numerical fidelity. Sections 5–6: conditional realisation and intervention. Paper findings are not imported as results for the current experiment.</p><p>This release offers exploratory paired structural/conditional tests across independent runs. Optimiser-block models, tail-model selection, parameter/reuse entropy decomposition and local mass-growth fitting require additional recorded designs or observables and are not claimed as available.</p></details></article>
 </div>
 {% endblock %}
-{% block scripts %}<script src="/static/auditor.js?v=1"></script>{% endblock %}
+{% block scripts %}<script src="/static/auditor.js?v=0.16.1"></script>{% endblock %}

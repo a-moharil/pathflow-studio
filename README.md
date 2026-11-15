@@ -1,4 +1,12 @@
-# Pathflow Studio 0.15.0
+# Pathflow Studio 0.16.1 · structural overhaul
+
+0.16.1 replaces the type and visual style: Archivo (expanded titles) and Martian Mono (all measured numbers), an ink control strip, cool porcelain plates and registration ticks. Nothing else changes.
+
+The studio is now organised as Library · Build · Queue · Evidence, with a context bar and a stage rail for each run: Overview and Training; Geometry, Realisation and Observables for the current case; Evidence and Audit; and the Clinical reading for binary runs. A case (one input pair at one checkpoint) travels between every stage, and each stage opens its saved result for that case without recomputation. Identical requests reuse their stored result; uncommitted checkpoints are refused at submission. New design system with bundled open-licence fonts, and a Refined light rendering for the geometry that leaves every measured quantity unchanged.
+
+Read `docs/STRUCTURAL_OVERHAUL_25.md` for names, routes, case rules, fixes and limits. No dependency changes. Existing workspaces are re-indexed automatically on first open.
+
+## 0.15.1
 
 General design now offers MLP, CNN and residual models for classification/regression. Healthcare Investigation has its own domain entry. Small/custom residual builders and the ResNet-50 preset share the tensor response engine. CNN hidden dense heads are optional. Field A adds mass contours, explicit display scales, signed diagnostics and selected-source route tracing.
 
@@ -188,3 +196,11 @@ Existing runs keep the dense readout. Run Statistics adds a ruler sensitivity di
 recomputes BCANw from a saved analysis at chosen ε (λ = (|E_ℓ|F + ε)^−p) and checks that the
 recorded convention reproduces the saved geometry. See
 [docs/READOUT_RULER_23.md](docs/READOUT_RULER_23.md).
+
+## Version 0.15.1 Field A over the raw contrast
+
+In the input-contrast explorer (Fields, healthcare workflow stage 2 and the residual-DAG
+page), choosing *Field A probability* now draws the gold probability mass over the raw
+contrast panel as well. The contrast stays visible as a fixed greyscale base, and the
+opacity slider applies to all three panels. The raw-contrast and raw-image modes are
+unchanged. Field A itself was already correct: it sums to one over the input pixels.

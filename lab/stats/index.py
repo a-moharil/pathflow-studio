@@ -26,7 +26,7 @@ from pathlib import Path
 
 from .. import storage as st
 
-INDEX_VERSION = 1
+INDEX_VERSION = 2  # 2: residual-DAG geometry responses indexed
 
 PATH_OBSERVABLES = ['H1', 'Sdef', 'eta1', 'eta2', 'log_eta1', 'log_eta2', 'logZ', 'log_path_count']
 RESPONSE_OBSERVABLES = ['delta', 'cancellation', 'contrast_l2', 'path_hellinger', 'residual']
@@ -147,6 +147,13 @@ def joint_rows(data: dict) -> list[tuple[str, str, str, float]]:
             cancellation = payload.get('global_cancellation')
             if finite(cancellation):
                 rows.append((label, 'response', 'cancellation', cancellation))
+            # Residual-DAG geometry responses (BCANw on the recorded carrier), when computed.
+            responses = (payload.get('geometry') or {}).get('responses') or {}
+            for side in ('structural', 'conditional'):
+                values = responses.get(side) or {}
+                for name in GEOMETRY_OBSERVABLES:
+                    if finite(values.get(name)):
+                        rows.append((label, 'geometry_' + side, name, values[name]))
     return rows
 
 

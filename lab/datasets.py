@@ -42,7 +42,14 @@ def load(root,c,download=False):
             for i in ids:
                 image,label=ds[int(i)];images.append(np.asarray(image,dtype='float32')[None]/255.);labels.append(int(np.asarray(label).reshape(-1)[0]))
             out.update({split+'_x':np.stack(images),split+'_y':np.array(labels,dtype='int64'),split+'_ids':np.asarray(ids)})
-    tmp=cache.with_suffix('.tmp.npz');np.savez_compressed(tmp,**out);tmp.replace(cache)
+    # A private temporary name per writer: the web process and the worker may build the
+    # same cache at once, and a shared temporary file let one writer replace it mid-write.
+    import os,uuid
+    tmp=cache.with_name(f'{cache.stem}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp.npz')
+    try:
+        np.savez_compressed(tmp,**out);tmp.replace(cache)
+    finally:
+        tmp.unlink(missing_ok=True)
     return out
 
 

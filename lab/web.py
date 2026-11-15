@@ -87,7 +87,7 @@ def control(rid):
 def submit(rid):
     st.run(root(),rid);p=request.json
     if p.get('kind','analysis') not in ['analysis','ensemble','dose']:raise ValueError('Unsupported analysis')
-    p.setdefault('kind','analysis');return jsonify(id=st.queue_measurement(root(),rid,p))
+    p.setdefault('kind','analysis');jid,state=st.admit(root(),rid,p);return jsonify(id=jid,state=state)
 @web.get('/api/job/<jid>')
 def job(jid):
     with st.db(root()) as db:r=db.execute('SELECT * FROM jobs WHERE id=?',(jid,)).fetchone()
@@ -235,4 +235,5 @@ def healthcare_submit(rid):
     p=dict(request.json or {})
     if p.get('kind') not in ['healthcare_case','healthcare_dose','healthcare_cohort','healthcare_evidence']:raise ValueError('Invalid healthcare job')
     p['healthcare_version']=1
-    return jsonify(id=st.queue_measurement(root(),rid,p))
+    jid,state=st.admit(root(),rid,p)
+    return jsonify(id=jid,state=state)

@@ -49,13 +49,18 @@ def run_view(rid, view):
     """Stable aliases for every run view; the canonical pages keep their URLs."""
     info = _info(rid)
     joint = info['engine'] == 'joint'
+    observables = f'/experiment/{rid}?section=resnetObservatory' if joint else f'/observatory/{rid}'
     targets = {
         'training': f'/experiment/{rid}?section=' + ('training' if joint else 'Training'),
         'geometry': f'/experiment/{rid}?section=' + ('geometry' if joint else 'Geometry'),
-        'observatory': f'/experiment/{rid}?section=resnetObservatory' if joint else f'/observatory/{rid}',
-        'healthcare': f'/healthcare/{rid}',
-        'auditor': f'/auditor?run={rid}',
+        'realisation': f'/experiment/{rid}?section=' + ('fieldsPanel' if joint else 'Fields'),
+        'observables': observables, 'observatory': observables,
+        'evidence': f'/run/{rid}/statistics',
+        'clinical': f'/healthcare/{rid}', 'healthcare': f'/healthcare/{rid}',
+        'audit': f'/auditor?run={rid}', 'auditor': f'/auditor?run={rid}',
     }
+    if view in ('clinical', 'healthcare') and joint:
+        abort(404)
     if view not in targets:
         abort(404)
     query = request.query_string.decode()
@@ -142,8 +147,10 @@ def run_overview(rid):
     ix.sync(root(), rid)
     r, engine = info['run'], info['engine']
     config = r['config']
-    probe_key = _default_context(rid, prefer=('probe', 'joint_analysis'))
-    analysis_key = _default_context(rid, prefer=('analysis',))
+    joint = engine == 'joint'
+    probe_key = _default_context(rid, prefer=('joint_analysis',) if joint else ('probe',))
+    # Residual-DAG runs have no fixed probe; their geometry comes from the recorded analyses.
+    analysis_key = _default_context(rid, prefer=('joint_analysis',) if joint else ('analysis',))
     probe = ix.series(root(), rid, probe_key)
     analysis = ix.series(root(), rid, analysis_key) if analysis_key else {}
 

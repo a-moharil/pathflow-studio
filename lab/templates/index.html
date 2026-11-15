@@ -2,13 +2,14 @@
 {% block content %}
 <div class="titleRow">
   <div>
-    <p class="eyebrow">EXPERIMENT REGISTRY</p>
-    <h1>Experiments</h1>
-    <p>Training histories, intrinsic measurements, interventions and their statistics. Open a run to enter its workspace.</p>
+    <p class="eyebrow">WORKSPACE · LIBRARY</p>
+    <h1>Library</h1>
+    <p>Every trained network in this workspace, with its recorded measurements. Open a run to follow its cases through geometry, realisation, evidence and audit.</p>
   </div>
   <div class="toolbar">
-    <a class="button" href="/statistics">Cohort statistics</a>
-    <a class="button primary" href="/design">New experiment</a>
+    <a class="button" href="/healthcare">Healthcare set-up</a>
+    <a class="button" href="/statistics">Cross-run evidence</a>
+    <a class="button primary" href="/design">Build a network</a>
   </div>
 </div>
 <section class="card">
@@ -36,7 +37,7 @@ function renderRegistry() {
   const query = $('search').value.toLowerCase();
   const engine = $('engineFilter').value;
   const table = document.createElement('table');
-  table.innerHTML = '<thead><tr><th>Experiment</th><th>Dataset</th><th>Model / optimizer</th><th>Status</th><th>Update</th><th>Measurements</th><th>Views</th><th>Actions</th></tr></thead>';
+  table.innerHTML = '<thead><tr><th>Experiment</th><th>Dataset</th><th>Model / optimizer</th><th>Status</th><th>Update</th><th>Measurements</th><th>Open</th><th>Actions</th></tr></thead>';
   const body = document.createElement('tbody');
   const rows = registry.filter(r => (!engine || r.engine === engine) && JSON.stringify(r.config).toLowerCase().includes(query));
   for (const r of rows) {
@@ -46,7 +47,7 @@ function renderRegistry() {
               cell(r.status), cell(r.step), cell(`${r.analysis_count ?? 0} saved · ${r.pending_measurements ?? 0} pending`));
     const views = document.createElement('td');
     views.className = 'linkCell';
-    for (const [label, href] of [['Overview', `/run/${r.id}`], ['Training', `/experiment/${r.id}`], ['Statistics', `/run/${r.id}/statistics`]]) {
+    for (const [label, href] of [['Overview', `/run/${r.id}`], ['Latest case', `/run/${r.id}/geometry`], ['Evidence', `/run/${r.id}/evidence`]]) {
       const a = document.createElement('a');
       a.href = href;
       a.textContent = label;
@@ -72,8 +73,8 @@ function renderRegistry() {
   }
   table.append(body);
   $('experiments').replaceChildren(table);
-  if (!registry.length) $('experiments').append('No experiments yet. Create an experiment to begin.');
-  $('registryNote').textContent = registry.length ? `${rows.length} of ${registry.length} experiments shown.` : '';
+  if (!registry.length) $('experiments').append('No networks yet. Build one to begin.');
+  $('registryNote').textContent = registry.length ? `${rows.length} of ${registry.length} experiments shown. Latest case opens the most recent recorded analysis without recomputation.` : '';
 }
 
 async function deleteJoint(r) {

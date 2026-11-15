@@ -1,6 +1,6 @@
 /* Shared helpers for the overview and statistics views. */
 const StatsUI = {
-  colors: { structural: '#2a78d6', conditional: '#eb6834', third: '#1baf7a', groups: ['#2a78d6', '#eb6834', '#1baf7a', '#eda100'] },
+  colors: { structural: '#2D5DA6', conditional: '#C17A14', third: '#1F9D6E', groups: ['#2D5DA6', '#C17A14', '#1F9D6E', '#A0457E'] },
 
   fmt(v, digits = 4) {
     if (v === null || v === undefined || Number.isNaN(v)) return '—';
@@ -60,12 +60,12 @@ const StatsUI = {
     if (!host || typeof Plotly === 'undefined') return;
     const base = {
       autosize: true, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: '#ffffff',
-      font: { family: 'system-ui', color: '#465a73', size: 12 },
+      font: { family: '\"Archivo Instrument\",Archivo,\"Helvetica Neue\",Arial,sans-serif', color: '#3A4556', size: 12 },
       margin: { l: 62, r: 16, t: 26, b: 48 },
       legend: { orientation: 'h', y: 1.16, x: 0, font: { size: 11 } },
-      xaxis: { gridcolor: '#eef1f6', zerolinecolor: '#c8d2df', automargin: true, linecolor: '#c8d2df' },
-      yaxis: { gridcolor: '#eef1f6', zerolinecolor: '#c8d2df', automargin: true, linecolor: '#c8d2df' },
-      hovermode: 'x unified', hoverlabel: { bgcolor: '#ffffff', bordercolor: '#c8d2df', font: { color: '#202c3d' } },
+      xaxis: { gridcolor: '#ECEAE4', zerolinecolor: '#C9C5BA', automargin: true, linecolor: '#C9C5BA' },
+      yaxis: { gridcolor: '#ECEAE4', zerolinecolor: '#C9C5BA', automargin: true, linecolor: '#C9C5BA' },
+      hovermode: 'x unified', hoverlabel: { bgcolor: '#ffffff', bordercolor: '#C9C5BA', font: { color: '#0E1A2B' } },
       uirevision: id
     };
     const final = { ...base, ...layout, xaxis: { ...base.xaxis, ...layout.xaxis }, yaxis: { ...base.yaxis, ...layout.yaxis } };

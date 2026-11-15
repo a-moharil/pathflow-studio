@@ -166,7 +166,8 @@ def test_run_workspace_pages_and_aliases(workspace):
     for url in ['/', f'/run/{rid}', f'/run/{rid}/statistics', '/statistics', '/compare', f'/experiment/{rid}', f'/observatory/{rid}', f'/auditor?run={rid}']:
         assert client.get(url).status_code == 200, url
     page = client.get(f'/observatory/{rid}').text
-    assert 'id="runBar"' in page and f'href="/run/{rid}/statistics"' in page and 'aria-current="page">Observatory' in page
+    # 0.16: the run tabs became the stage rail (Observatory is the Observables stage).
+    assert 'id="runBar"' in page and f'href="/run/{rid}/evidence"' in page and 'aria-current="page">Observables' in page
     assert 'plotly.min.js' not in client.get('/').text and 'region_explorer.js' not in client.get('/').text
     assert 'plotly.min.js' in client.get(f'/run/{rid}/statistics').text
     assert client.get(f'/run/{rid}/geometry').location == f'/experiment/{rid}?section=Geometry'

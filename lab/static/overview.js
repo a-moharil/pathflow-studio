@@ -60,11 +60,14 @@
            t.retention ? `Conditional retains ${StatsUI.pct(t.retention.value)} of structural η₁ at update ${t.retention.step}` : 'Structural · conditional'),
       tile('Normalised entropy deficit', pair(t.structural_deficit, t.conditional_deficit), 'Structural · conditional (S_def / log N)'),
       tile('Maximal qualified exponent d*', pair(t.structural_dstar, t.conditional_dstar),
-           t.structural_dstar ? `Scheduled geometry at update ${t.structural_dstar.step}` : 'No scheduled geometry yet'),
+           t.structural_dstar ? `${d.engine === 'joint' ? 'Recorded residual geometry' : 'Scheduled geometry'} at update ${t.structural_dstar.step}`
+             : d.engine === 'joint' ? 'Not measured yet: d* needs a scalar-scope residual geometry (the operation quotient has no BCANw)' : 'No scheduled geometry yet'),
       tile('Recorded jobs', String(Object.values(d.jobs).reduce((a, j) => a + j.completed, 0)),
            Object.entries(d.jobs).map(([k, j]) => `${k} ${j.completed}${j.pending ? ` (+${j.pending})` : ''}`).join(' · ') || 'None yet')
     );
-    StatsUI.note('ovTileNote', 'η and deficit come from the fixed probe recorded at every committed checkpoint; d* from the scheduled all-output analyses. ' +
+    StatsUI.note('ovTileNote', (d.engine === 'joint'
+      ? 'η, deficit and d* come from the recorded residual-DAG analyses of the context named above; residual runs have no fixed probe. '
+      : 'η and deficit come from the fixed probe recorded at every committed checkpoint; d* from the scheduled all-output analyses. ') +
       'Undefined measures are shown as —. These are recorded values of one run, not population estimates.');
 
     const tr = d.series.training;

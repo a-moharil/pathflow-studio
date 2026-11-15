@@ -7,9 +7,10 @@
   --ws-surface: #ffffff;
   --ws-tint: #f4f6f9;
   --ws-accent: #245bb2;
-  --series-structural: #2a78d6;  /* validated categorical slot 1 */
-  --series-conditional: #eb6834; /* validated categorical slot 2 */
-  --series-third: #1baf7a;       /* validated categorical slot 3 */
+  --series-structural: #2D5DA6;  /* validated categorical slot 1 · navy */
+  --series-conditional: #C17A14; /* validated categorical slot 2 · ochre */
+  --series-third: #1F9D6E;       /* validated categorical slot 3 · sage-emerald */
+  --series-fourth: #A0457E;      /* validated categorical slot 4 · Bosch rose */
 }
 
 nav a[aria-current=page] { font-weight: 650; text-decoration: underline; text-underline-offset: 6px; }

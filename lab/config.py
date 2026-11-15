@@ -5,6 +5,17 @@ DEFAULT = dict(name='New experiment', dataset='synthetic', model='mlp', widths=[
                updates=100, checkpoint_every=10, seed=42, train_size=512,
                device='cpu', geometry_limit=500, landmarks=64, measurement_limit=2500, geometry_every=0)
 
+FIELD_CLASSES = {'synthetic-interference': 3, 'synthetic-orbits': 4}
+
+
+def class_count(c):
+    """Number of outputs: 1 for regression, 10 for Fashion-MNIST, the field datasets' own
+    counts, otherwise 2."""
+    if c.get('task')=='regression':return 1
+    if c['dataset']=='fashion':return 10
+    return FIELD_CLASSES.get(c['dataset'],2)
+
+
 def validate(raw):
     c=DEFAULT|raw
     c['task']=raw.get('task','classification')
@@ -29,7 +40,7 @@ def validate(raw):
         if head_required:raise ValueError('Head widths must contain 1..8 widths in 1..256')
         c['head_widths']=[32,16]  # unused while the head is off
     if c['optimizer']=='RMSProp': c['optimizer']='RMSprop'
-    for key,options in dict(dataset=['synthetic','fashion','pneumonia','synthetic-regression'], model=['mlp','cnn'],
+    for key,options in dict(dataset=['synthetic','fashion','pneumonia','synthetic-regression','synthetic-interference','synthetic-orbits'], model=['mlp','cnn'],
                             activation=['relu','tanh'],optimizer=['Adam','SGD','RMSprop'],device=['cpu','cuda','auto']).items():
         if c[key] not in options: raise ValueError(f'Invalid {key}')
     for key,lo,hi in [('measurement_limit',50,4000),('geometry_every',0,100000),('test_every',1,100),('batch_size',1,512),('updates',1,100000),('checkpoint_every',1,1000),('seed',0,2147483647),('train_size',32,60000),('geometry_limit',50,1200),('landmarks',8,128),('kernel',1,7),('stride',1,3),('padding',0,3)]:
@@ -54,12 +65,18 @@ def validate(raw):
     for key in ['centered','amsgrad','nesterov','bias']:
         if not isinstance(c[key],bool):raise ValueError(f'{key} must be boolean')
     if c['nesterov'] and c['optimizer']=='SGD' and (c['momentum']<=0 or c['dampening']!=0):raise ValueError('Nesterov requires positive momentum and zero dampening')
+    # Ambiguity (class overlap) of the synthetic field datasets; recorded only for them.
+    if c['dataset'] in FIELD_CLASSES:
+        try:c['ambiguity']=round(float(raw.get('ambiguity',.35)),2)
+        except (TypeError,ValueError):raise ValueError('Ambiguity must be a number in 0..0.8')
+        if not 0<=c['ambiguity']<=.8:raise ValueError('Ambiguity must be in 0..0.8')
+    else:c.pop('ambiguity',None)
     c['name']=str(c['name'])[:100];c['bias']=bool(c['bias'])
     estimate(c)
     return c
 
 def estimate(c):
-    classes=1 if c.get('task')=='regression' else 10 if c['dataset']=='fashion' else 2
+    classes=class_count(c)
     nodes=784;edges=0;params=0;n=784
     if c['model']=='mlp':
         for m in c['widths']+[classes]:

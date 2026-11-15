@@ -50,14 +50,13 @@ def coordinates(payload: dict) -> dict | None:
     x = payload.get('x', payload.get('index'))
     if step is None or x is None:
         return None
-    try:
-        step = int(step)
-    except (TypeError, ValueError):
-        return None
     reference_type = payload.get('reference_type', 'dataset')
     reference = None if reference_type == 'zero' else payload.get('reference')
-    return dict(step=step, split=payload.get('split', 'test'), x=int(x), reference_type=reference_type,
-                reference=None if reference is None else int(reference))
+    try:
+        return dict(step=int(step), split=payload.get('split', 'test'), x=int(x), reference_type=reference_type,
+                    reference=None if reference is None else int(reference))
+    except (TypeError, ValueError):
+        return None  # an older or unusual record: listed, but not treated as a case
 
 
 def label(c: dict) -> str:

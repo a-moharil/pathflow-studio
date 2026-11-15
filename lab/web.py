@@ -5,6 +5,7 @@ from PIL import Image
 from flask import Blueprint,current_app,render_template,request,jsonify,abort,send_file
 from . import storage as st,datasets
 from .config import validate,estimate,DEFAULT
+from .fields_data import class_names,is_field
 from .core.optimizers import specification
 web=Blueprint('web',__name__)
 def root():return current_app.config['ROOT']
@@ -116,7 +117,7 @@ def observations(rid):
 def data_info(rid):
     config=st.run(root(),rid)['config'];d=datasets.load(root(),config)
     result={s:{'count':len(d[s+'_y']),'labels':d[s+'_y'].tolist(),'source_indices':d[s+'_ids'].tolist()} for s in ['train','val','test']}
-    result['class_names']={'synthetic':['Vertical stripe','Horizontal stripe'],'fashion':['T-shirt/top','Trouser','Pullover','Dress','Coat','Sandal','Shirt','Sneaker','Bag','Ankle boot'],'pneumonia':['Normal','Pneumonia']}.get(config['dataset'],[])
+    result['class_names']={'synthetic':['Vertical stripe','Horizontal stripe'],'fashion':['T-shirt/top','Trouser','Pullover','Dress','Coat','Sandal','Shirt','Sneaker','Bag','Ankle boot'],'pneumonia':['Normal','Pneumonia']}.get(config['dataset'])or(class_names(config['dataset']) if is_field(config['dataset']) else [])
     return jsonify(result)
 @web.get('/api/run/<rid>/image/<int:i>')
 def image(rid,i):

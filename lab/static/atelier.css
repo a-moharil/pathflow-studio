@@ -249,3 +249,8 @@ body[data-presentation=on] { background: #E4E8EE; }
 .findingText { font-family: var(--font-display); font-stretch: 104%; font-size: 18px; font-weight: 450; line-height: 1.6; color: var(--ink); }
 .tile .pairValue { flex-wrap: wrap; gap: 4px 14px; }
 .tile .pairValue span { font-size: 17px; white-space: nowrap; }
+
+/* Library rows open their run. */
+tr.openRow { cursor: pointer; }
+tr.openRow .runLink { color: var(--ink); font-weight: 600; text-decoration: none; }
+tr.openRow:hover .runLink { color: var(--navy); text-decoration: underline; text-underline-offset: 3px; }

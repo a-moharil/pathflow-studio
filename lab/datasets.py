@@ -2,18 +2,27 @@
 from pathlib import Path
 import numpy as np
 from functools import lru_cache
+from .fields_data import DEFAULT_AMBIGUITY,generate,is_field
 
 @lru_cache(maxsize=2)
 def _read_cache(path):
     with np.load(path) as z:return {k:z[k] for k in z.files}
 
+def _stem(c):
+    stem=f"{c['dataset']}_{c['seed']}_{c['train_size']}"
+    # Field datasets also depend on their ambiguity; existing cache names are unchanged.
+    if is_field(c['dataset']):stem+=f"_a{int(round(c.get('ambiguity',DEFAULT_AMBIGUITY)*100)):02d}"
+    return stem
+
 def load(root,c,download=False):
     folder=Path(root)/'datasets';folder.mkdir(exist_ok=True)
-    cache=folder/f"{c['dataset']}_{c['seed']}_{c['train_size']}.npz"
+    cache=folder/f"{_stem(c)}.npz"
     if cache.exists():
         return _read_cache(str(cache))
     rng=np.random.default_rng(c['seed']);out={}
-    if c['dataset'] in ['synthetic','synthetic-regression']:
+    if is_field(c['dataset']):
+        out=generate(c['dataset'],c['seed'],c['train_size'],c.get('ambiguity',DEFAULT_AMBIGUITY))
+    elif c['dataset'] in ['synthetic','synthetic-regression']:
         for split,n in [('train',c['train_size']),('val',64),('test',80)]:
             y=np.arange(n)%2;x=rng.normal(.1,.07,(n,1,28,28)).astype('float32')
             for i in range(n):
@@ -54,7 +63,7 @@ def load(root,c,download=False):
 
 
 def cache_path(root,c):
-    return Path(root)/'datasets'/f"{c['dataset']}_{c['seed']}_{c['train_size']}.npz"
+    return Path(root)/'datasets'/f"{_stem(c)}.npz"
 
 
 def status(root,c):
@@ -69,7 +78,7 @@ def status(root,c):
                 splits[split]={'count':len(y),'target_range':[float(y.min()),float(y.max())]} if c['dataset']=='synthetic-regression' else {'count':len(y),'classes':np.bincount(y).tolist()}
             return {'state':'ready','splits':splits,'key':p.stem}
         except Exception as e:return {'state':'invalid','message':str(e),'key':p.stem}
-    if c['dataset'] in ['synthetic','synthetic-regression']:return {'state':'prepare','message':'Generate deterministic synthetic data','key':p.stem}
+    if c['dataset'] in ['synthetic','synthetic-regression'] or is_field(c['dataset']):return {'state':'prepare','message':'Generate deterministic synthetic data','key':p.stem}
     folder=Path(root)/'datasets'
     if c['dataset']=='fashion':
         files=['train-images-idx3-ubyte','train-labels-idx1-ubyte','t10k-images-idx3-ubyte','t10k-labels-idx1-ubyte']
@@ -86,7 +95,7 @@ def prepare(root,c,report=lambda msg:None):
         p=cache_path(root,c)
         if status(root,c)['state']=='invalid':
             _read_cache.cache_clear();p.rename(p.with_suffix('.invalid.npz'))
-        if not p.exists() and c['dataset']!='synthetic':
+        if not p.exists() and c['dataset']!='synthetic' and not is_field(c['dataset']):
             report('Downloading or verifying source dataset files; byte progress is shown in the Python console…')
         load(root,c,download=True)
         report('Verifying prepared images and labels…')

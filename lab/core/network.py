@@ -17,6 +17,7 @@ also holds for wrapper models that share ``model.layers``.
 """
 import torch
 from torch import nn
+from ..config import class_count
 
 
 class SpatialAverage(nn.Module):
@@ -47,7 +48,7 @@ class Network(nn.Module):
         self.layers = nn.ModuleList()
         self.shapes = [(1, 28, 28)]
         n = 784
-        classes = 1 if c.get('task') == 'regression' else 10 if c['dataset'] == 'fashion' else 2
+        classes = class_count(c)
         if c['model'] == 'mlp':
             for m in c['widths']:
                 self.layers.append(nn.Linear(n, m, bias=c['bias']))

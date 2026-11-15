@@ -33,7 +33,14 @@ function cell(text) {
   return td;
 }
 
-function renderRegistry() {
+let rendered = '';
+
+function renderRegistry(force = true) {
+  // Polling re-renders only when something changed, so a click is never lost to a
+  // table rebuilt between press and release.
+  const signature = JSON.stringify([registry, $('search').value, $('engineFilter').value]);
+  if (!force && signature === rendered) return;
+  rendered = signature;
   const query = $('search').value.toLowerCase();
   const engine = $('engineFilter').value;
   const table = document.createElement('table');
@@ -43,7 +50,15 @@ function renderRegistry() {
   for (const r of rows) {
     const tr = document.createElement('tr');
     const model = r.joint ? (r.config.architecture || 'ResNet-50') : String(r.config.model || '').toUpperCase();
-    tr.append(cell(r.config.name), cell(r.config.dataset), cell(`${model} / ${r.config.optimizer}`),
+    // The experiment name opens the run; so does any click on the row outside its controls.
+    const nameCell = document.createElement('td'), nameLink = document.createElement('a');
+    nameLink.href = `/run/${r.id}`;
+    nameLink.className = 'runLink';
+    nameLink.textContent = r.config.name;
+    nameCell.append(nameLink);
+    tr.dataset.href = `/run/${r.id}`;
+    tr.className = 'openRow';
+    tr.append(nameCell, cell(r.config.dataset), cell(`${model} / ${r.config.optimizer}`),
               cell(r.status), cell(r.step), cell(`${r.analysis_count ?? 0} saved · ${r.pending_measurements ?? 0} pending`));
     const views = document.createElement('td');
     views.className = 'linkCell';
@@ -85,12 +100,18 @@ async function deleteJoint(r) {
 async function refreshRegistry() {
   const d = await api('/api/runs/summary');
   registry = d.runs;
-  renderRegistry();
+  renderRegistry(false);
   return d.active;
 }
 
-$('search').oninput = renderRegistry;
-$('engineFilter').onchange = renderRegistry;
+$('search').oninput = () => renderRegistry();
+$('engineFilter').onchange = () => renderRegistry();
+$('experiments').addEventListener('click', e => {
+  const row = e.target.closest('tr.openRow');
+  if (!row || e.target.closest('a, button, summary, details, input, select')) return;
+  if (getSelection().toString()) return;
+  location.href = row.dataset.href;
+});
 // One summary request for both engines; 3 s while anything runs, 15 s otherwise.
 const poll = Poller.every(() => refreshRegistry().catch(e => { showError(e); return false; }), { active: 3000, idle: 15000 });
 </script>

@@ -1,4 +1,6 @@
-# Pathflow Studio 0.16.1 · structural overhaul
+# Pathflow Studio 0.16.2 · structural overhaul
+
+0.16.2 adds two synthetic field datasets for geometry demonstrations (Synthetic interference, 3 classes; Synthetic orbits, 4 classes) with an ambiguity control in Build, and makes Library rows open their run on click. See `docs/SYNTHETIC_FIELDS_27.md`.
 
 0.16.1 replaces the type and visual style: Archivo (expanded titles) and Martian Mono (all measured numbers), an ink control strip, cool porcelain plates and registration ticks. Nothing else changes.
 

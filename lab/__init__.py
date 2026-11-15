@@ -30,4 +30,10 @@ def create_app(root=None):
     app.register_blueprint(joint_web)
     from .auditor.web import web as auditor_web
     app.register_blueprint(auditor_web)
+    from .stats import index as stats_index
+    from .stats.web import web as stats_web
+    from .stats.navigation import context_processor as run_navigation
+    stats_index.init(root)
+    app.register_blueprint(stats_web)
+    app.context_processor(run_navigation)
     return app

@@ -1,4 +1,4 @@
-# Pathflow Studio 0.11.0
+# Pathflow Studio 0.14.0
 
 General design now offers MLP, CNN and residual models for classification/regression. Healthcare Investigation has its own domain entry. Small/custom residual builders and the ResNet-50 preset share the tensor response engine. CNN hidden dense heads are optional. Field A adds mass contours, explicit display scales, signed diagnostics and selected-source route tracing.
 
@@ -34,7 +34,7 @@ Healthcare investigation now includes Visual evidence. See `docs/VISUAL_EVIDENCE
 
 See `docs/FITTING_07.md` for the new iteration budgets and dimension diagnostics.
 
-# Pathflow Studio 0.4.0
+# Pathflow Studio 0.14.0
 
 A fresh local Flask project for training MLPs and CNNs and inspecting exact path measures, their intrinsic metrics, and low-dimensional projections. This directory is independent of the earlier Pathflow Lab prototype. It does not migrate previous databases.
 
@@ -159,3 +159,22 @@ complete-path divergence, hidden-layer concentration, intervention controls,
 transformation playback and cohort predictive/intrinsic evidence. Supports both
 MLP and CNN saved checkpoints, with JSON/CSV/PNG export and persistent analysis
 history. See [docs/HEALTHCARE_06.md](docs/HEALTHCARE_06.md) for definitions and limits.
+
+
+## Version 0.14.0 efficient realisation
+
+Every run now has one workspace bar (Overview · Training · Geometry · Observatory ·
+Healthcare · Statistics · ECML auditor) across both engines. A run **Overview** and a
+run **Statistics** page summarise recorded observables. Statistics cover disposition →
+realisation, temporal regimes, coupling, scale geometry and healthcare cohort tests.
+A cross-run **Statistics** page compares independently trained runs by one factor,
+with matched-block tests. Ledgers export as CSV or LaTeX.
+
+Polling is incremental and adaptive. Lean feeds omit heavy probe fields, and hidden
+tabs stop polling. The auditor catalogue is cached. A workspace-wide **Presentation**
+switch makes the server refuse new computation while saved results stay browsable.
+
+`python tools/build_demo_workspace.py --out demo_workspace --scale demo` builds a
+demonstration workspace from real computations; start it with
+`PATHFLOW_HOME=demo_workspace python run.py`. See
+[docs/EFFICIENT_REALISATION_22.md](docs/EFFICIENT_REALISATION_22.md).

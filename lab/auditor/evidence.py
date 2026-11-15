@@ -55,21 +55,46 @@ def variants(data):
     return []
 
 
+def _record_summary(root,row,configs):
+    """Variants and checkpoint of a completed artefact, cached by file mtime and size.
+
+    The catalogue previously parsed and hashed every saved result on each request.
+    The cache keeps the listing O(changed files); report() still reads and hashes the
+    selected artefact, so provenance digests are unchanged.
+    """
+    from ..stats.index import init as index_init
+    path=Path(row['result'] or '').resolve()
+    if not row['result'] or not path.is_relative_to(Path(root).resolve()) or not path.is_file():raise ValueError('missing')
+    stat=path.stat()
+    with storage.db(root) as db:
+        cached=db.execute('SELECT mtime,size,summary FROM artifact_index WHERE job=?',(row['id'],)).fetchone()
+    if cached and cached[0]==float(stat.st_mtime_ns) and cached[1]==stat.st_size:return json.loads(cached[2])
+    job,data,config,digest=load_record(root,row['id'])
+    summary=dict(variants=[list(v) for v in variants(data)],checkpoint=data.get('step',data.get('checkpoint',data.get('context',{}).get('checkpoint'))))
+    index_init(root)
+    with storage.db(root) as db:
+        db.execute('INSERT OR REPLACE INTO artifact_index VALUES(?,?,?,?,?,?)',(row['id'],str(path),stat.st_mtime_ns,stat.st_size,digest,json.dumps(summary)))
+    return summary
+
+
 def catalogue(root,rid=None):
     with storage.db(root) as db:
-        query="SELECT id,run,payload,created FROM jobs WHERE status='completed'"
+        query="SELECT id,run,payload,created,result FROM jobs WHERE status='completed'"
         args=()
         if rid:query+=' AND run=?';args=(rid,)
         rows=db.execute(query+' ORDER BY created DESC',args).fetchall()
+        configs={r[0]:json.loads(r[1]) for r in db.execute('SELECT id,config FROM runs')}
+        try:configs.update({r[0]:json.loads(r[1]) for r in db.execute('SELECT id,config FROM joint_runs')})
+        except Exception:pass
     records=[]; unsupported=0; missing=0
     for row in rows:
         p=json.loads(row['payload']); kind=p.get('kind','')
         if kind not in ['analysis','dose','healthcare_case','healthcare_dose','joint_analysis']: unsupported+=1;continue
         try:
-            job,data,config,digest=load_record(root,row['id'])
-            for stage,head in variants(data):
+            summary=_record_summary(root,row,configs);config=configs.get(row['run'],{})
+            for stage,head in summary['variants']:
                 records.append(dict(id=f"{row['id']}:{stage}:{head}",job=row['id'],run=row['run'],stage=stage,head=head,
-                                    name=config.get('name',row['run']),checkpoint=data.get('step',data.get('checkpoint',data.get('context',{}).get('checkpoint'))),
+                                    name=config.get('name',row['run']),checkpoint=summary['checkpoint'],
                                     kind=kind,created=row['created'],family=config.get('model',config.get('architecture','unknown'))))
         except (OSError,ValueError,KeyError): missing+=1
     return dict(records=records,unsupported=unsupported,missing=missing,

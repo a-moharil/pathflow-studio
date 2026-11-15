@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+{% block content %}
+<div id="statsContext" data-run="{{rid}}" data-engine="{{engine}}" data-dataset="{{config.dataset}}"></div>
+<div class="titleRow">
+  <div>
+    <p class="eyebrow">RUN STATISTICS · RECORDED RESULTS ONLY</p>
+    <h1>{{config.name}}</h1>
+    <p>Statistics of what this run recorded. Checkpoints are repeated observations of one fitted trajectory and are summarised descriptively; cohort images are observations conditional on one fitted model.</p>
+  </div>
+  <div class="toolbar">
+    <button id="ledgerCsv">Ledger CSV</button>
+    <button id="ledgerTex">Ledger LaTeX</button>
+    <button id="ledgerJson">Statistics JSON</button>
+  </div>
+</div>
+
+<section class="card">
+  <div class="fields">
+    <label class="recordLabel">Measurement context
+      <select id="contextSelect"></select>
+    </label>
+    <button id="refreshStats">Refresh</button>
+  </div>
+  <p id="contextNote" class="help"></p>
+  <nav class="statNav" aria-label="Sections">
+    <a href="#secRealisation">Disposition → realisation</a>
+    <a href="#secTemporal">Temporal regime</a>
+    <a href="#secCoupling">Coupling</a>
+    <a href="#secGeometry">Scale geometry</a>
+    <a href="#secResponse">Response</a>
+    <a href="#secCohort" id="cohortNavLink">Healthcare cohort</a>
+    <a href="#secLedger">Ledger</a>
+  </nav>
+</section>
+
+<section class="card statSection" id="secRealisation">
+  <div class="titleRow"><h2>Disposition → realisation <small>conditional minus structural, matched by checkpoint</small></h2><span id="realisationTag"></span></div>
+  <p class="reading" id="realisationReading"></p>
+  <div class="grid">
+    <div id="realisationChart" class="chart"></div>
+    <div id="retentionChart" class="chart"></div>
+  </div>
+  <div id="realisationTable" class="tableWrap"></div>
+</section>
+
+<section class="card statSection" id="secTemporal">
+  <h2>Temporal regime <small>first → last change, monotone trend and interior turning points</small></h2>
+  <p class="help">Trend ρ is Spearman's rank correlation with the update index. A turning point is an interior extremum; for example, an early minimum followed by sustained growth marks relaxation before selection. These describe one trajectory; no p-values are attached.</p>
+  <div id="temporalCharts" class="smallMultiples"></div>
+  <div id="temporalTable" class="tableWrap"></div>
+</section>
+
+<section class="card statSection" id="secCoupling">
+  <h2>Coupling across observables <small>Spearman ρ over shared checkpoints</small></h2>
+  <p class="help" id="couplingNote"></p>
+  <div id="couplingChart" class="chart square"></div>
+</section>
+
+<section class="card statSection" id="secGeometry">
+  <h2>Scale geometry <small>BCANw d*, ξ₅₀, d_eff and qualified windows</small></h2>
+  <p class="help" id="geometryNote"></p>
+  <div id="geometryCharts" class="smallMultiples"></div>
+  <div id="geometryTable" class="tableWrap"></div>
+</section>
+
+<section class="card statSection" id="secResponse">
+  <h2>Response <small>output contrast and cancellation</small></h2>
+  <div id="responseCharts" class="smallMultiples"></div>
+</section>
+
+<section class="card statSection" id="secCohort">
+  <div class="titleRow"><h2>Healthcare cohort evidence <small>images given one fitted model</small></h2>
+    <div class="fields"><label>Cohort job<select id="cohortSelect"></select></label>
+      <label>Observable<select id="cohortObservable"></select></label></div></div>
+  <p id="cohortEmpty" class="help"></p>
+  <div id="cohortBody" hidden>
+    <div id="cohortTiles" class="tileGrid"></div>
+    <p class="help" id="cohortDependence"></p>
+    <div class="grid">
+      <div><h3>Distribution by prediction outcome</h3><div id="cohortGroups" class="chart"></div></div>
+      <div><h3>Separation of misclassified from correct images</h3><div id="cohortForest" class="chart"></div></div>
+    </div>
+    <h3>Misclassified vs correctly classified</h3>
+    <p class="reading" id="cohortConfounding"></p>
+    <div id="cohortErrors" class="tableWrap"></div>
+    <h3>Class 1 vs class 0</h3>
+    <div id="cohortLabels" class="tableWrap"></div>
+    <h3>Across outcome groups (TN · FP · FN · TP)</h3>
+    <div id="cohortOmnibus" class="tableWrap"></div>
+    <p class="help" id="cohortHolm"></p>
+  </div>
+</section>
+
+<section class="card statSection" id="secLedger">
+  <h2>Statistics ledger <small>the tables above in one exportable record</small></h2>
+  <div id="ledgerTable" class="tableWrap"></div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script src="/static/stats_ui.js?v=0.14.0"></script>
+<script src="/static/run_statistics.js?v=0.14.0"></script>
+{% endblock %}

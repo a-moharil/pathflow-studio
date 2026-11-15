@@ -1,5 +1,96 @@
-{% extends 'base.html' %}{% block content %}<div class="titleRow"><div><p class="eyebrow">EXPERIMENT REGISTRY</p><h1>Experiments</h1><p>Training histories, intrinsic measurements and interventions.</p></div><a class="button primary" href="/design">New experiment</a></div><section class="card"><label>Search experiments <input id="search" placeholder="Name, dataset, architecture or optimizer"></label><div id="experiments" class="tableWrap"></div></section>{% endblock %}{% block scripts %}<script>
-let registry=[];function renderRegistry(){let table=document.createElement('table');table.innerHTML='<thead><tr><th>Experiment</th><th>Dataset</th><th>Model / optimizer</th><th>Status</th><th>Update</th><th>Measurements</th><th>Actions</th></tr></thead>';let body=document.createElement('tbody');for(let r of registry.filter(r=>JSON.stringify(r.config).toLowerCase().includes($('search').value.toLowerCase()))){let tr=document.createElement('tr');for(let value of [r.config.name,r.config.dataset,(r.joint?(r.config.architecture||'ResNet-50'):r.config.model.toUpperCase())+' / '+r.config.optimizer,r.status,r.step,`${r.analysis_count??0} saved · ${r.pending_measurements??0} pending`]){let td=document.createElement('td');td.textContent=value;tr.append(td)}let td=document.createElement('td'),a=document.createElement('a'),button=document.createElement('button');a.href='/experiment/'+r.id;a.textContent='Open';button.textContent=r.status==='delete_failed'?'Retry deletion':'Delete';button.className='danger';button.disabled=r.status==='delete_requested';button.onclick=()=>r.joint?deleteJoint(r):deleteExperiment(r.id);td.append(a,document.createTextNode('  '),button);if(r.error){let note=document.createElement('details'),sum=document.createElement('summary'),pre=document.createElement('pre');sum.textContent='Error details';pre.textContent=r.error;note.append(sum,pre);td.append(note)}tr.append(td);body.append(tr)}table.append(body);$('experiments').replaceChildren(table);if(!registry.length)$('experiments').append('No experiments yet. Create an experiment to begin.')}
-async function deleteJoint(r){if(!confirm(`Delete ${r.config.name}, its checkpoints and analyses? Shared datasets remain.`))return;try{await api('/api/joint/'+r.id+'/control',{action:'delete'});refreshRegistry()}catch(e){showError(e)}}
-async function refreshRegistry(){try{const [legacy,joint]=await Promise.all([api('/api/runs'),api('/api/joint')]);registry=[...legacy,...joint.runs.map(r=>({...r,joint:true}))].sort((a,b)=>b.created-a.created);renderRegistry()}catch(e){showError(e)}}$('search').oninput=renderRegistry;refreshRegistry();setInterval(refreshRegistry,3000);
-</script>{% endblock %}
+{% extends 'base.html' %}
+{% block content %}
+<div class="titleRow">
+  <div>
+    <p class="eyebrow">EXPERIMENT REGISTRY</p>
+    <h1>Experiments</h1>
+    <p>Training histories, intrinsic measurements, interventions and their statistics. Open a run to enter its workspace.</p>
+  </div>
+  <div class="toolbar">
+    <a class="button" href="/statistics">Cohort statistics</a>
+    <a class="button primary" href="/design">New experiment</a>
+  </div>
+</div>
+<section class="card">
+  <div class="fields">
+    <label>Search experiments <input id="search" placeholder="Name, dataset, architecture or optimizer"></label>
+    <label>Engine
+      <select id="engineFilter"><option value="">All</option><option value="native">MLP / CNN</option><option value="joint">Residual DAG</option></select>
+    </label>
+  </div>
+  <div id="experiments" class="tableWrap"></div>
+  <p id="registryNote" class="help"></p>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+let registry = [];
+
+function cell(text) {
+  const td = document.createElement('td');
+  td.textContent = text;
+  return td;
+}
+
+function renderRegistry() {
+  const query = $('search').value.toLowerCase();
+  const engine = $('engineFilter').value;
+  const table = document.createElement('table');
+  table.innerHTML = '<thead><tr><th>Experiment</th><th>Dataset</th><th>Model / optimizer</th><th>Status</th><th>Update</th><th>Measurements</th><th>Views</th><th>Actions</th></tr></thead>';
+  const body = document.createElement('tbody');
+  const rows = registry.filter(r => (!engine || r.engine === engine) && JSON.stringify(r.config).toLowerCase().includes(query));
+  for (const r of rows) {
+    const tr = document.createElement('tr');
+    const model = r.joint ? (r.config.architecture || 'ResNet-50') : String(r.config.model || '').toUpperCase();
+    tr.append(cell(r.config.name), cell(r.config.dataset), cell(`${model} / ${r.config.optimizer}`),
+              cell(r.status), cell(r.step), cell(`${r.analysis_count ?? 0} saved · ${r.pending_measurements ?? 0} pending`));
+    const views = document.createElement('td');
+    views.className = 'linkCell';
+    for (const [label, href] of [['Overview', `/run/${r.id}`], ['Training', `/experiment/${r.id}`], ['Statistics', `/run/${r.id}/statistics`]]) {
+      const a = document.createElement('a');
+      a.href = href;
+      a.textContent = label;
+      views.append(a);
+    }
+    tr.append(views);
+    const actions = document.createElement('td');
+    const button = document.createElement('button');
+    button.textContent = r.status === 'delete_failed' ? 'Retry deletion' : 'Delete';
+    button.className = 'danger';
+    button.disabled = r.status === 'delete_requested';
+    button.onclick = () => r.joint ? deleteJoint(r) : deleteExperiment(r.id);
+    actions.append(button);
+    if (r.error) {
+      const note = document.createElement('details'), sum = document.createElement('summary'), pre = document.createElement('pre');
+      sum.textContent = 'Error details';
+      pre.textContent = r.error;
+      note.append(sum, pre);
+      actions.append(note);
+    }
+    tr.append(actions);
+    body.append(tr);
+  }
+  table.append(body);
+  $('experiments').replaceChildren(table);
+  if (!registry.length) $('experiments').append('No experiments yet. Create an experiment to begin.');
+  $('registryNote').textContent = registry.length ? `${rows.length} of ${registry.length} experiments shown.` : '';
+}
+
+async function deleteJoint(r) {
+  if (!confirm(`Delete ${r.config.name}, its checkpoints and analyses? Shared datasets remain.`)) return;
+  try { await api('/api/joint/' + r.id + '/control', { action: 'delete' }); poll.refresh(); } catch (e) { showError(e); }
+}
+
+async function refreshRegistry() {
+  const d = await api('/api/runs/summary');
+  registry = d.runs;
+  renderRegistry();
+  return d.active;
+}
+
+$('search').oninput = renderRegistry;
+$('engineFilter').onchange = renderRegistry;
+// One summary request for both engines; 3 s while anything runs, 15 s otherwise.
+const poll = Poller.every(() => refreshRegistry().catch(e => { showError(e); return false; }), { active: 3000, idle: 15000 });
+</script>
+{% endblock %}

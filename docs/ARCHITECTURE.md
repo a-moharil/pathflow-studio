@@ -6,11 +6,19 @@
 
 | Route | Role |
 |---|---|
-| `/` | List runs and their committed state |
+| `/` | Registry of both engines, with links into each run workspace |
 | `/design` | Architecture, optimizer, schedule and explicit dataset preparation |
-| `/experiment/<id>` | Training controls and curves, checkpoint inspection and both geometries |
+| `/healthcare` | Healthcare domain workspace (joint classification and mask tasks) |
+| `/run/<id>` | Run overview: recorded state, headline observables, links to every view |
+| `/experiment/<id>?section=` | Training, geometry, fields and configuration (MLP/CNN), or the residual-DAG workspace |
 | `/observatory/<id>` | Observable trajectories, time histograms and contrast ensembles |
-| `/compare` | Validation loss histories labelled with configuration identities |
+| `/healthcare/<id>` | Five-stage healthcare investigation for binary MLP/CNN runs |
+| `/run/<id>/statistics` | Within-run statistics and healthcare cohort evidence |
+| `/statistics` (also `/compare`) | Cross-run statistics over independently trained runs |
+| `/auditor?run=<id>` | ECML evidence workspace and population audit |
+
+Every run-scoped page renders the same workspace bar (`lab/stats/navigation.py`).
+`/run/<id>/<view>` redirects to the canonical page of each view.
 
 ## Modules
 
@@ -26,6 +34,11 @@
 - `lab/web.py`: validated routes, CSRF checks and browser API.
 - `lab/static/geometry.js`: projection and drawing, separate from scientific computation.
 - `lab/static/charts.js`: locally bundled Plotly charts with responsive SVG rendering.
+- `lab/stats/index.py`: indexed scalar observables from both engines, synchronised lazily and incrementally.
+- `lab/stats/engine.py`: design-explicit statistics (temporal, realisation, coupling, cohort, cross-run, ledger).
+- `lab/stats/web.py`: run overview and statistics pages, lean feeds, registry summary and presentation guard.
+- `lab/static/poller.js`: adaptive polling and incremental run feeds.
+- `lab/static/workspace.js`: workspace bar, carried context and presentation switch.
 
 ## State and recovery
 

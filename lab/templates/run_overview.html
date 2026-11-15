@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block content %}
+<div id="overviewContext" data-run="{{rid}}" data-engine="{{engine}}"></div>
+<div class="titleRow">
+  <div>
+    <p class="eyebrow">EXPERIMENT OVERVIEW</p>
+    <h1>{{config.name}}</h1>
+    <p id="ovState">Loading recorded state…</p>
+  </div>
+  <div class="toolbar">
+    <a class="button" href="/run/{{rid}}/statistics">Statistics</a>
+    <a class="button primary" href="/experiment/{{rid}}">Open training</a>
+  </div>
+</div>
+
+<section class="card">
+  <h2>Recorded state <small id="ovContext"></small></h2>
+  <div id="ovTiles" class="tileGrid"></div>
+  <p class="help" id="ovTileNote"></p>
+</section>
+
+<div class="grid">
+  <section class="card">
+    <h2>Learning</h2>
+    <div id="ovLearning" class="chart small"></div>
+  </section>
+  <section class="card">
+    <h2>Disposition and realisation <small>log η₁ over training</small></h2>
+    <div id="ovRealisation" class="chart small"></div>
+    <p class="help" id="ovRealisationNote"></p>
+  </section>
+</div>
+
+<section class="card">
+  <h2>Views of this experiment</h2>
+  <div id="ovViews" class="viewGrid"></div>
+</section>
+
+<details class="card">
+  <summary>Configuration and recorded jobs</summary>
+  <div class="grid">
+    <div id="ovConfig"></div>
+    <div id="ovJobs"></div>
+  </div>
+</details>
+{% endblock %}
+{% block scripts %}
+<script src="/static/stats_ui.js?v=0.14.0"></script>
+<script src="/static/overview.js?v=0.14.0"></script>
+{% endblock %}

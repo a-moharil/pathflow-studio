@@ -1,1 +1,63 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="csrf" content="{{session.csrf}}"><title>Pathflow Studio</title><link rel="stylesheet" href="/static/studio.css?v=0.12.0"></head><body><header><a href="/" class="brand">PATHFLOW <span>STUDIO</span> <small>{{studio_version}}</small></a><nav><a href="/auditor" id="auditorNav">ECML auditor</a><a href="/healthcare">Healthcare investigation</a><a href="/">Experiments</a><a href="/design">Design experiment</a><a href="/compare">Compare</a></nav></header><main><div id="error" role="alert" hidden></div><section id="computeMonitor" class="card" aria-label="Live computation"><strong>Local computation</strong><div id="computeText">Checking worker…</div><progress id="computeBar" hidden style="width:100%"></progress><small id="computeTiming"></small></section>{% block content %}{% endblock %}</main><script src="/static/vendor/plotly.min.js?v=0.12.0"></script><script src="/static/api.js?v=0.12.0"></script><script src="/static/source_region.js?v=0.12.0"></script><script src="/static/pair_selector.js?v=0.12.0"></script><script src="/static/field_controls.js?v=0.12.0"></script><script src="/static/region_explorer.js?v=0.12.0"></script><script src="/static/charts.js?v=0.12.0"></script><script src="/static/progress.js?v=0.12.0"></script><script src="/static/auditor_link.js?v=1"></script>{% block scripts %}{% endblock %}</body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="csrf" content="{{session.csrf}}">
+  <title>{% if run_nav %}{{run_nav.name}} · {% endif %}Pathflow Studio</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/static/studio.css?v=0.14.0">
+  <link rel="stylesheet" href="/static/workspace.css?v=0.14.0">
+</head>
+{# Asset tiers: minimal (registry, hubs) · charts (Plotly views) · full (geometry and field workbenches). #}
+{% set tier = assets|default('full') %}
+<body data-assets="{{tier}}" data-presentation="{{ 'on' if presentation else 'off' }}">
+<header>
+  <a href="/" class="brand">PATHFLOW <span>STUDIO</span> <small>{{studio_version}}</small></a>
+  <nav aria-label="Studio">
+    <a href="/" {% if request.path == '/' %}aria-current="page"{% endif %}>Experiments</a>
+    <a href="/design" {% if request.path.startswith('/design') %}aria-current="page"{% endif %}>Design</a>
+    <a href="/healthcare" {% if request.path == '/healthcare' %}aria-current="page"{% endif %}>Healthcare</a>
+    <a href="/statistics" {% if request.path in ('/statistics', '/auditor') and not run_nav %}aria-current="page"{% endif %}>Statistics</a>
+    <button type="button" id="presentationToggle" class="presentationToggle" aria-pressed="{{ 'true' if presentation else 'false' }}" title="Presentation mode: no new computations are submitted; saved results remain browsable">Presentation</button>
+  </nav>
+</header>
+{% if run_nav %}
+<div class="runBar" id="runBar" data-run="{{run_nav.rid}}" data-engine="{{run_nav.engine}}">
+  <div class="runIdentity">
+    <span class="runEngine">{{ 'MLP / CNN' if run_nav.engine == 'native' else 'Residual DAG' }}</span>
+    <a class="runName" href="/run/{{run_nav.rid}}">{{run_nav.name}}</a>
+    <span class="runMeta">{{run_nav.dataset}} · {{run_nav.family}}{% if run_nav.optimizer %} · {{run_nav.optimizer}}{% endif %}</span>
+    <span class="runStatus" id="runBarStatus" data-status="{{run_nav.status}}">{{run_nav.status}} · update {{run_nav.step}}</span>
+  </div>
+  <nav class="runTabs" aria-label="Experiment views">
+    {% for tab in run_nav.tabs %}<a href="{{tab.href}}" data-tab="{{tab.key}}" {% if tab.key == run_nav.active %}aria-current="page"{% endif %}>{{tab.label}}</a>{% endfor %}
+  </nav>
+</div>
+{% endif %}
+<main>
+  <div id="error" role="alert" hidden></div>
+  <section id="computeMonitor" class="card" aria-label="Live computation">
+    <strong>Local computation</strong>
+    <div id="computeText">Checking worker…</div>
+    <progress id="computeBar" hidden style="width:100%"></progress>
+    <small id="computeTiming"></small>
+  </section>
+  {% block content %}{% endblock %}
+</main>
+{% if tier != 'minimal' %}<script src="/static/vendor/plotly.min.js?v=0.12.0"></script>{% endif %}
+<script src="/static/api.js?v=0.14.0"></script>
+<script src="/static/poller.js?v=0.14.0"></script>
+{% if tier == 'full' %}
+<script src="/static/source_region.js?v=0.12.0"></script>
+<script src="/static/pair_selector.js?v=0.12.0"></script>
+<script src="/static/field_controls.js?v=0.12.0"></script>
+<script src="/static/region_explorer.js?v=0.12.0"></script>
+{% endif %}
+{% if tier != 'minimal' %}<script src="/static/charts.js?v=0.12.0"></script>{% endif %}
+<script src="/static/progress.js?v=0.14.0"></script>
+<script src="/static/auditor_link.js?v=1"></script>
+<script src="/static/workspace.js?v=0.14.0"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

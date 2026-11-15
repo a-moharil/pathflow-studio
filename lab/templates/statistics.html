@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="titleRow">
+  <div>
+    <p class="eyebrow">COHORT STATISTICS · INDEPENDENTLY TRAINED RUNS</p>
+    <h1>Across experiments</h1>
+    <p>Compare runs that differ in one configuration factor. Each run contributes one value at the selected state. Tests are enabled only when you declare the runs independent and the design supports them.</p>
+  </div>
+  <div class="toolbar">
+    <a class="button" href="/auditor">ECML population audit</a>
+  </div>
+</div>
+
+<div class="grid">
+  <section class="card">
+    <h2>Runs</h2>
+    <div class="fields">
+      <label>Stratum<select id="stratum"></select></label>
+      <button id="selectAll" type="button">Select all</button>
+      <button id="selectNone" type="button">Clear</button>
+    </div>
+    <div id="runPicker" class="runPicker"></div>
+    <p class="help" id="runNote">Strata hold runs with the same dataset, model family and task. Residual-DAG runs are compared in the ECML population audit.</p>
+  </section>
+  <section class="card">
+    <h2>Comparison</h2>
+    <div class="fields">
+      <label>Grouping factor<select id="factor">
+        <option value="optimizer">Optimizer</option><option value="activation">Activation</option><option value="lr">Learning rate</option>
+        <option value="widths">MLP widths</option><option value="channels">CNN channels</option><option value="batch_size">Batch size</option>
+        <option value="decay">Weight decay</option><option value="train_size">Training subset</option><option value="seed">Seed</option></select></label>
+      <label>Measure<select id="side">
+        <option value="conditional">Conditional realisation</option><option value="structural">Structural disposition</option>
+        <option value="geometry_structural">Structural geometry</option><option value="geometry_conditional">Conditional geometry</option>
+        <option value="response">Response</option><option value="training">Training</option></select></label>
+      <label>Observable<select id="name"></select></label>
+      <label>State<select id="state"><option value="final">Final checkpoint</option><option value="initial">Initialisation</option><option value="update">Update…</option></select></label>
+      <label id="updateLabel" hidden>Update<input id="update" type="number" min="0" value="50"></label>
+      <label>Measurement context<select id="contextKind">
+        <option value="probe">Fixed probe · every checkpoint</option><option value="analysis">Scheduled analysis · all outputs</option></select></label>
+    </div>
+    <label class="toggle"><input type="checkbox" id="independent"> I declare these runs independently trained units (one value per run)</label>
+    <div class="toolbar"><button id="compare" class="primary">Compare runs</button><button id="exportCsv">Ledger CSV</button><button id="exportTex">Ledger LaTeX</button><span id="compareState" role="status"></span></div>
+  </section>
+</div>
+
+<div id="results" hidden>
+  <section class="card">
+    <div class="titleRow"><h2 id="resultTitle"></h2><span id="inferenceTag"></span></div>
+    <p class="reading" id="inferenceReading"></p>
+    <div class="grid">
+      <div><h3>Group trajectories <small>median and interquartile band</small></h3><div id="bandChart" class="chart"></div></div>
+      <div><h3>Value at the selected state <small>one point per run</small></h3><div id="stripChart" class="chart"></div></div>
+    </div>
+    <div id="groupTable" class="tableWrap"></div>
+    <p class="help" id="blockNote"></p>
+  </section>
+  <section class="card">
+    <h2>Runs in this comparison</h2>
+    <div id="runTable" class="tableWrap"></div>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/stats_ui.js?v=0.14.0"></script>
+<script src="/static/cohort_statistics.js?v=0.14.0"></script>
+{% endblock %}

@@ -10,20 +10,22 @@ web=Blueprint('web',__name__)
 def root():return current_app.config['ROOT']
 
 @web.get('/')
-def index():return render_template('index.html')
+def index():return render_template('index.html',assets='minimal')
 @web.get('/design')
 def design():return render_template('design.html',defaults=DEFAULT,healthcare=request.args.get('domain')=='healthcare')
 @web.get('/healthcare')
-def healthcare_home():return render_template('healthcare_home.html')
+def healthcare_home():return render_template('healthcare_home.html',assets='minimal')
 @web.get('/experiment/<rid>')
 def experiment(rid):
     with st.db(root()) as db:is_resnet=db.execute('SELECT 1 FROM joint_runs WHERE id=?',(rid,)).fetchone()
     if is_resnet:return render_template('joint_run.html',rid=rid)
     return render_template('experiment.html',run=st.run(root(),rid))
 @web.get('/observatory/<rid>')
-def observatory(rid):return render_template('observatory.html',run=st.run(root(),rid))
+def observatory(rid):return render_template('observatory.html',run=st.run(root(),rid),assets='charts')
 @web.get('/compare')
-def compare():return render_template('compare.html')
+def compare():
+    # Superseded by cross-run statistics; the old URL serves the new page.
+    return render_template('statistics.html',assets='charts')
 @web.get('/api/runs')
 def runs():
     with st.db(root()) as db:rows=db.execute('SELECT id FROM runs ORDER BY created DESC').fetchall()
@@ -45,11 +47,23 @@ def create():
     return jsonify(id=st.create(root(),c))
 @web.get('/api/run/<rid>')
 def detail(rid):
+    """Full run detail. ``lean=1`` omits heavy probe fields; ``since=N`` returns only
+    checkpoint measurements after update N (polling feeds). Exports use the full form."""
     r=st.run(root(),rid)
+    lean=request.args.get('lean')=='1'
+    since=request.args.get('since',type=int)
     with st.db(root()) as db:
-        r['metrics']=[json.loads(x[0]) for x in db.execute('SELECT payload FROM measurements WHERE run=? ORDER BY step',(rid,))]
+        if since is None:rows=db.execute('SELECT payload FROM measurements WHERE run=? ORDER BY step',(rid,)).fetchall()
+        else:rows=db.execute('SELECT payload FROM measurements WHERE run=? AND step>? ORDER BY step',(rid,since)).fetchall()
+        r['checkpoints']=[x[0] for x in db.execute('SELECT step FROM measurements WHERE run=? ORDER BY step',(rid,))]
         r['jobs']=[{k:v for k,v in dict(j).items() if k!='result'} for j in db.execute('SELECT * FROM jobs WHERE run=? ORDER BY created DESC LIMIT 30',(rid,))]
-    r['checkpoints']=[m['step'] for m in r['metrics']];r['optimizer']=specification(r['config']);r['analysis_cost']=estimate(r['config']);return jsonify(r)
+    r['metrics']=[json.loads(x[0]) for x in rows]
+    if lean:
+        from .stats.index import lean_probe
+        r['metrics']=[lean_probe(m) for m in r['metrics']]
+    if since is not None:r['metrics_since']=since
+    r['metric_count']=len(r['checkpoints'])
+    r['optimizer']=specification(r['config']);r['analysis_cost']=estimate(r['config']);return jsonify(r)
 @web.post('/api/run/<rid>/control')
 def control(rid):
     action=request.json.get('action')
@@ -84,8 +98,20 @@ def job(jid):
 @web.get('/api/run/<rid>/observations')
 def observations(rid):
     st.run(root(),rid)
-    with st.db(root()) as db:rows=db.execute('SELECT payload FROM observations WHERE run=? ORDER BY step, rowid',(rid,)).fetchall()
-    return jsonify([json.loads(r[0]) for r in rows])
+    # ``lean=1`` omits heavy diagnostics; ``after=ROWID`` returns only newer records,
+    # each tagged with ``_job`` and ``_rowid`` so a client can merge them.
+    lean=request.args.get('lean')=='1';after=request.args.get('after',type=int)
+    with st.db(root()) as db:
+        if after is None and not lean:
+            rows=db.execute('SELECT payload FROM observations WHERE run=? ORDER BY step, rowid',(rid,)).fetchall()
+            return jsonify([json.loads(r[0]) for r in rows])
+        rows=db.execute('SELECT payload,job,rowid FROM observations WHERE run=? AND rowid>? ORDER BY step, rowid',(rid,after or 0)).fetchall()
+        total=db.execute('SELECT count(*) FROM observations WHERE run=?',(rid,)).fetchone()[0]
+    from .stats.index import lean_observation
+    out=[]
+    for payload,job,rowid in rows:
+        d=json.loads(payload);d=lean_observation(d) if lean else d;d.update(_job=job,_rowid=rowid);out.append(d)
+    return jsonify(dict(records=out,total=total))
 @web.get('/api/run/<rid>/dataset')
 def data_info(rid):
     config=st.run(root(),rid)['config'];d=datasets.load(root(),config)

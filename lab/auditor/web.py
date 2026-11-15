@@ -8,7 +8,7 @@ from .geometry import remeasure
 web=Blueprint('auditor',__name__)
 
 @web.get('/auditor')
-def page():return render_template('auditor.html')
+def page():return render_template('auditor.html',assets='charts')
 
 @web.get('/api/auditor/catalogue')
 def records():return jsonify(catalogue(current_app.config['ROOT'],request.args.get('run') or None))

@@ -1,0 +1,85 @@
+/* Run workspace, presentation mode and statistics views. Matches the light studio theme. */
+:root {
+  --ws-ink: #202c3d;
+  --ws-ink-2: #566578;
+  --ws-muted: #65748a;
+  --ws-line: #dce2eb;
+  --ws-surface: #ffffff;
+  --ws-tint: #f4f6f9;
+  --ws-accent: #245bb2;
+  --series-structural: #2a78d6;  /* validated categorical slot 1 */
+  --series-conditional: #eb6834; /* validated categorical slot 2 */
+  --series-third: #1baf7a;       /* validated categorical slot 3 */
+}
+
+nav a[aria-current=page] { font-weight: 650; text-decoration: underline; text-underline-offset: 6px; }
+.presentationToggle { padding: 6px 11px; font-size: 12px; }
+body[data-presentation=on] .presentationToggle { background: #fff4e5; border-color: #e0a85a; color: #7a4a00; font-weight: 650; }
+body[data-presentation=on] main::before {
+  content: 'Presentation mode · saved results only · no new computation is submitted';
+  display: block; margin: 0 0 14px; padding: 8px 12px; border-radius: 6px;
+  background: #fff4e5; border: 1px solid #f0cf9e; color: #7a4a00; font-size: 12px;
+}
+
+/* Run workspace bar */
+.runBar {
+  position: sticky; top: 0; z-index: 20; display: flex; flex-wrap: wrap; align-items: center;
+  justify-content: space-between; gap: 10px 24px; padding: 10px 4vw; background: var(--ws-surface);
+  border-bottom: 1px solid var(--ws-line); box-shadow: 0 1px 3px #18253b0d;
+}
+.runIdentity { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; min-width: 0; }
+.runEngine { font-size: 10px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--ws-muted); }
+.runName { font-weight: 650; color: var(--ws-ink); max-width: 38ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.runMeta { font-size: 12px; color: var(--ws-ink-2); }
+.runStatus { font-size: 11px; padding: 3px 8px; border-radius: 10px; background: var(--ws-tint); color: var(--ws-ink-2); border: 1px solid var(--ws-line); }
+.runStatus[data-status=training], .runStatus[data-status=saving] { background: #e9f0fb; color: #194f98; border-color: #aac0e0; }
+.runStatus[data-status=failed], .runStatus[data-status=delete_failed] { background: #fdecec; color: #8a1f1f; border-color: #efb4b4; }
+.runTabs { display: flex; flex-wrap: wrap; gap: 4px; }
+.runTabs a { padding: 6px 11px; border-radius: 6px; font-size: 13px; color: var(--ws-ink-2); border: 1px solid transparent; }
+.runTabs a:hover { background: var(--ws-tint); }
+.runTabs a[aria-current=page] { background: #e9f0fb; color: #194f98; border-color: #aac0e0; font-weight: 600; text-decoration: none; }
+.linkCell a { margin-right: 10px; white-space: nowrap; }
+
+/* Overview */
+.tileGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 6px 0 4px; }
+.tile { background: var(--ws-surface); border: 1px solid var(--ws-line); border-radius: 8px; padding: 14px 16px; min-width: 0; }
+.tile .tileLabel { font-size: 12px; letter-spacing: .2px; color: var(--ws-muted); font-weight: 600; }
+.tile .tileValue { font-size: 24px; font-weight: 650; color: var(--ws-ink); margin: 6px 0 2px; font-variant-numeric: tabular-nums; }
+.tile .tileNote { font-size: 12px; color: var(--ws-ink-2); line-height: 1.45; }
+.tile .pairValue { display: flex; gap: 14px; align-items: baseline; }
+.tile .pairValue span { font-size: 19px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.swatch { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: 1px; }
+.swatch.structural { background: var(--series-structural); }
+.swatch.conditional { background: var(--series-conditional); }
+.viewGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.viewCard { display: block; padding: 16px; border: 1px solid var(--ws-line); border-radius: 8px; background: var(--ws-surface); color: var(--ws-ink); }
+.viewCard:hover { border-color: #aac0e0; background: #f8fbff; }
+.viewCard strong { display: block; margin-bottom: 4px; color: var(--ws-accent); }
+.viewCard span { font-size: 12px; color: var(--ws-ink-2); line-height: 1.5; }
+
+/* Statistics */
+.statusTag { display: inline-block; font-size: 10px; letter-spacing: .6px; text-transform: uppercase; padding: 2px 7px; border-radius: 9px; border: 1px solid var(--ws-line); color: var(--ws-ink-2); background: var(--ws-tint); }
+.statusTag.exploratory { background: #eef5ff; color: #194f98; border-color: #b8cdee; }
+.statusTag.identity { background: #ecf8f2; color: #12613f; border-color: #a9dcc3; }
+.statusTag.insufficient, .statusTag.unavailable { background: #f6f6f4; color: #6f6f6a; }
+.statTable { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.statTable th { font-weight: 600; color: var(--ws-ink-2); text-align: left; border-bottom: 1px solid var(--ws-line); padding: 7px 8px; white-space: nowrap; }
+.statTable td { border-bottom: 1px solid #edf0f5; padding: 7px 8px; vertical-align: top; }
+.statTable td.num { text-align: right; white-space: nowrap; }
+.statTable tr:hover td { background: #fafbfd; }
+.smallMultiples { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.smallMultiples > div, .grid > div { min-width: 0; }
+.smallMultiples .chart { height: 240px; width: 100%; }
+.smallMultiples h3 { font-size: 13px; margin: 4px 0 0; }
+.chart.square { height: 420px; }
+.statSection { scroll-margin-top: 120px; }
+.statNav { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 18px; }
+.statNav a { font-size: 12px; padding: 5px 10px; border: 1px solid var(--ws-line); border-radius: 14px; background: var(--ws-surface); }
+.reading { font-size: 13px; color: var(--ws-ink); line-height: 1.6; background: #f8fafc; border-left: 3px solid #aac0e0; padding: 8px 12px; margin: 10px 0; }
+.runPicker { max-height: 260px; overflow: auto; border: 1px solid var(--ws-line); border-radius: 6px; padding: 6px 10px; background: var(--ws-surface); }
+.runPicker label { display: flex; gap: 8px; align-items: center; font-size: 12.5px; padding: 3px 0; }
+@media (max-width: 760px) { .runBar { position: static; padding: 10px 16px; } .runName { max-width: 24ch; } }
+
+.fields select#contextSelect, .fields select#cohortSelect { max-width: min(640px, 100%); min-width: 360px; }
+.fields select#stratum { max-width: 360px; }
+.reading:empty { display: none; }

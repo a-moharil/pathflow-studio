@@ -28,4 +28,6 @@ def create_app(root=None):
     from .joint.web import web as joint_web
     joint_engine.init(root)
     app.register_blueprint(joint_web)
+    from .auditor.web import web as auditor_web
+    app.register_blueprint(auditor_web)
     return app

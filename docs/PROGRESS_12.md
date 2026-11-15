@@ -1,0 +1,10 @@
+# Persistent data location and measured progress (0.9.2)
+BUS-UCLM remembers the imported folder in workspace/joint_data/settings.json. Existing manifests provide a migration default from their image/mask locations; otherwise ~/datasets/bus-uclm-v1 is suggested using the server user home. Save BUS-UCLM default validates the directory. Check/download prefers the saved local directory. CSV imports never replace this dataset-specific preference. Keep that directory available: manifests reference the original image files.
+
+A worker monitor on every page and flushed terminal lines report current computation, experiment/job identity, stage and elapsed time, including long operations with no count. The monitor refreshes every two seconds and flags stale heartbeats after 15 seconds. It is worker telemetry, not evidence of numerical convergence.
+
+Measured stage ETA is elapsed/completed times remaining units. It is displayed for BUS-UCLM indexing, ResNet split evaluation and Integrated Gradients quadrature. It excludes all later phases; tracing, path marginal calculation, model initialization and checkpoint writes have no fabricated finish estimate. Training reports update/target and forward, backward, save and split-evaluation stages. Pause remains honored between updates, not mid-backward or during a serialized analysis. No numerical definitions or graph topology change.
+
+Training request ETA calibrates after two completed updates and one scheduled evaluation, then uses separate rolling update and evaluation costs and the actual remaining evaluation schedule. It is a forecast at update start, excludes queued analysis, and resets on a new training request. Until those timings exist, it explicitly says calibrating.
+
+Validation: all 87 existing Python tests and 3 new tests passed. Chromium verified saved-path persistence and three real synthetic ResNet optimizer updates with measured ETA, no JavaScript errors. Guarded installers verified against both 0.9.1 and 0.9.0, root and nested layouts, preserving workspace sentinels and refusing dirty trees.

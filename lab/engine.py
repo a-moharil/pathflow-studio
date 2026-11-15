@@ -27,8 +27,9 @@ def evaluate(m,data,test=True):
             n=len(data[split+'_y']);total=0.;correct=0
             for i in range(0,n,256):
                 x=torch.from_numpy(data[split+'_x'][i:i+256]).to(device);y=torch.from_numpy(data[split+'_y'][i:i+256]).to(device);z=m(x)
-                total+=float(torch.nn.functional.cross_entropy(z,y,reduction='sum'));correct+=int((z.argmax(1)==y).sum())
-            out[split+'_loss']=total/n;out[split+'_accuracy']=correct/n
+                if m.config.get('task')=='regression':total+=float(torch.nn.functional.mse_loss(z[:,0],y,reduction='sum'))
+                else:total+=float(torch.nn.functional.cross_entropy(z,y,reduction='sum'));correct+=int((z.argmax(1)==y).sum())
+            out[split+'_loss']=total/n;out[split+'_accuracy']=None if m.config.get('task')=='regression' else correct/n
     return out
 
 def commit(root,r,m,opt,rng,step,data,finalize=True):
@@ -38,7 +39,7 @@ def commit(root,r,m,opt,rng,step,data,finalize=True):
     scores=evaluate(m,data,test)
     # Analysis uses a copy: optimizer-linked parameter dtype/device are never mutated.
     probe_model=Network(c);probe_model.load_state_dict({k:v.detach().cpu() for k,v in m.state_dict().items()})
-    probe=analyze(probe_model,data['test_x'][0],data['test_x'][1],dict(a=0,b=1),geometry_enabled=False)
+    probe=analyze(probe_model,data['test_x'][0],data['test_x'][1],dict(a=0,b=None if c.get('task')=='regression' else 1),geometry_enabled=False)
     p=checkpoint(root,rid,step);tmp=p.with_suffix('.tmp')
     with st.db(root) as db:already_committed=db.execute('SELECT 1 FROM measurements WHERE run=? AND step=?',(rid,step)).fetchone()
     if not already_committed:
@@ -54,7 +55,7 @@ def commit(root,r,m,opt,rng,step,data,finalize=True):
     with st.db(root) as db:previous_step=db.execute('SELECT max(step) FROM measurements WHERE run=? AND step<?',(rid,step)).fetchone()[0]
     due=bool(every and (step==0 or step==c['updates'] or step//every>(previous_step or 0)//every))
     if next_status!='delete_requested' and due:
-        st.queue_measurement(root,rid,dict(kind='analysis',step=step,x=0,reference=1,readout=dict(scope='all',a=0,b=1),gates={},measurement_limit=c.get('measurement_limit',2500)))
+        st.queue_measurement(root,rid,dict(kind='analysis',step=step,x=0,reference=1,readout=dict(scope='all',a=0,b=None if c.get('task')=='regression' else 1),gates={},measurement_limit=c.get('measurement_limit',2500)))
     return next_status
 
 def quantum(root,r):
@@ -72,7 +73,7 @@ def quantum(root,r):
         if st.run(root,rid)['request']:break
         idx=torch.randint(len(data['train_y']),(min(c['batch_size'],len(data['train_y'])),),generator=rng)
         x=torch.from_numpy(data['train_x'][idx.numpy()]).to(device);y=torch.from_numpy(data['train_y'][idx.numpy()]).to(device)
-        m.train();opt.zero_grad();loss=torch.nn.functional.cross_entropy(m(x),y)
+        m.train();opt.zero_grad();z=m(x);loss=torch.nn.functional.mse_loss(z[:,0],y) if c.get('task')=='regression' else torch.nn.functional.cross_entropy(z,y)
         if not torch.isfinite(loss):raise ValueError('Non-finite loss; reduce learning rate')
         loss.backward();opt.step();step+=1
         with st.db(root) as db:db.execute('UPDATE runs SET live_step=? WHERE id=?',(step,rid))

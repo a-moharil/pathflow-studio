@@ -27,6 +27,8 @@ def job(root,payload,rid=None):
     return jid
 
 def progress(root,jid,message):
+    from .progress import stage
+    stage(message)
     with db(root) as c:c.execute('UPDATE jobs SET progress=? WHERE id=?',(message,jid))
 
 def atomic_json(path,obj):

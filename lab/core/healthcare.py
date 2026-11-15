@@ -20,8 +20,9 @@ def case_analysis(model,x,reference,readout,gates=None):
     for l in range(len(zs)):
         a=zs[l].numpy().ravel();b=z0[l].numpy().ravel()
         derivative=np.ones_like(a) if l==len(zs)-1 else ((a>0).astype(float) if model.config['activation']=='relu' else 1-np.tanh(a)**2)
-        if l<len(zs)-1 and gates and str(l) in gates:
-            for idx,alpha in gates[str(l)].items():derivative[int(idx)]*=alpha
+        effective_gates=getattr(model,'gates',{}) if gates is None else gates
+        if l<len(zs)-1 and effective_gates and str(l) in effective_gates:
+            for idx,alpha in effective_gates[str(l)].items():derivative[int(idx)]*=alpha
         sec.append(np.divide(hs[l+1].numpy().ravel()-h0[l+1].numpy().ravel(),a-b,out=derivative,where=a!=b))
     sec.append(np.ones(1));dx=(x.astype(float)-reference.astype(float)).ravel()
     _,Fs=measure(sizes,layers,np.ones(sizes[0]),[np.ones(n) for n in sizes[1:]])
@@ -50,7 +51,7 @@ def case_analysis(model,x,reference,readout,gates=None):
     result.update(signed_field=signed.tolist(),signed_field_sum=float(signed.sum()),signed_field_residual=abs(float(signed.sum())-result['delta']),path_hellinger=h,layer_marginals=layers_out,probabilities=softmax(result['logits']).tolist(),reference_probabilities=softmax(result['reference_logits']).tolist(),margin=margin(result['logits']),reference_margin=margin(result['reference_logits']))
     s=np.asarray(result['input_fields']['structural']);c=result['input_fields']['conditional']
     result['field_redistribution']=(np.asarray(c)-s).tolist() if c is not None else None
-    result['field_b']=dict(status='not_implemented',reason='Primitive-occurrence intervention footprint is not implemented. Signed contrast contributions are a separate quantity.')
+    result['field_b']=dict(status='support_not_selected',reason='Select convolution support in Visual evidence to compute Field B. Signed contrast contributions are a separate quantity.')
     return result
 
 

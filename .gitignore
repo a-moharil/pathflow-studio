@@ -27,3 +27,4 @@ secret.key
 
 # Windows download metadata
 *:Zone.Identifier
+.venv-pathflow/

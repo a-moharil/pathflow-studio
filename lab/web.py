@@ -12,9 +12,14 @@ def root():return current_app.config['ROOT']
 @web.get('/')
 def index():return render_template('index.html')
 @web.get('/design')
-def design():return render_template('design.html',defaults=DEFAULT)
+def design():return render_template('design.html',defaults=DEFAULT,healthcare=request.args.get('domain')=='healthcare')
+@web.get('/healthcare')
+def healthcare_home():return render_template('healthcare_home.html')
 @web.get('/experiment/<rid>')
-def experiment(rid):return render_template('experiment.html',run=st.run(root(),rid))
+def experiment(rid):
+    with st.db(root()) as db:is_resnet=db.execute('SELECT 1 FROM joint_runs WHERE id=?',(rid,)).fetchone()
+    if is_resnet:return render_template('joint_run.html',rid=rid)
+    return render_template('experiment.html',run=st.run(root(),rid))
 @web.get('/observatory/<rid>')
 def observatory(rid):return render_template('observatory.html',run=st.run(root(),rid))
 @web.get('/compare')
@@ -83,8 +88,10 @@ def observations(rid):
     return jsonify([json.loads(r[0]) for r in rows])
 @web.get('/api/run/<rid>/dataset')
 def data_info(rid):
-    d=datasets.load(root(),st.run(root(),rid)['config'])
-    return jsonify({s:{'count':len(d[s+'_y']),'labels':d[s+'_y'].tolist(),'source_indices':d[s+'_ids'].tolist()} for s in ['train','val','test']})
+    config=st.run(root(),rid)['config'];d=datasets.load(root(),config)
+    result={s:{'count':len(d[s+'_y']),'labels':d[s+'_y'].tolist(),'source_indices':d[s+'_ids'].tolist()} for s in ['train','val','test']}
+    result['class_names']={'synthetic':['Vertical stripe','Horizontal stripe'],'fashion':['T-shirt/top','Trouser','Pullover','Dress','Coat','Sandal','Shirt','Sneaker','Bag','Ankle boot'],'pneumonia':['Normal','Pneumonia']}.get(config['dataset'],[])
+    return jsonify(result)
 @web.get('/api/run/<rid>/image/<int:i>')
 def image(rid,i):
     d=datasets.load(root(),st.run(root(),rid)['config'])
@@ -200,6 +207,6 @@ def healthcare_submit(rid):
     run=st.run(root(),rid)
     if run['config']['dataset'] not in ['pneumonia','synthetic']:raise ValueError('Select a binary healthcare experiment')
     p=dict(request.json or {})
-    if p.get('kind') not in ['healthcare_case','healthcare_dose','healthcare_cohort']:raise ValueError('Invalid healthcare job')
+    if p.get('kind') not in ['healthcare_case','healthcare_dose','healthcare_cohort','healthcare_evidence']:raise ValueError('Invalid healthcare job')
     p['healthcare_version']=1
     return jsonify(id=st.queue_measurement(root(),rid,p))

@@ -1,3 +1,39 @@
+# Pathflow Studio 0.11.0
+
+General design now offers MLP, CNN and residual models for classification/regression. Healthcare Investigation has its own domain entry. Small/custom residual builders and the ResNet-50 preset share the tensor response engine. CNN hidden dense heads are optional. Field A adds mass contours, explicit display scales, signed diagnostics and selected-source route tracing.
+
+Read `docs/RESIDUAL_FIELDS_14.md` for exact definitions, supported operators, compatibility and scope limits. Residual full scalar geometry is budgeted; the structural reference remains explicitly experimental. Use your existing working interpreter. No dependency changes are required.
+
+## Earlier release notes
+
+# Update 0.10.0
+
+Use Design experiment for MLP, CNN and ResNet. Architecture-specific controls appear inline. See docs/UNIFIED_RESNET_13.md for supported tasks, shared geometry and explicit scientific limits.
+
+# Update 0.9.2
+
+Persistent BUS-UCLM folder and live computation reporting are described in docs/PROGRESS_12.md. Existing datasets and experiments are preserved.
+
+# Pathflow Studio 0.9.1
+
+This update fixes dataset/architecture discovery and adds explicit ResNet presets. See `docs/SELECTION_FIX_11.md`. Select BUS-UCLM or ResNet-50 from **Design experiment**, or open **Joint healthcare** directly. Datasets remain visible before download.
+
+# Pathflow Studio 0.9.0
+
+New: the **Joint healthcare** page adds ResNet-50 segmentation + classification and an exact finite-contrast tensor DAG. See [docs/JOINT_TASK_10.md](docs/JOINT_TASK_10.md) for conventions, dataset import and scope limits, and [docs/VALIDATION_10.md](docs/VALIDATION_10.md) for executed validation. Existing MLP/CNN workflows remain available.
+
+# Pathflow Studio 0.8.0
+
+Visual evidence now has visual channel/connection selection, Grad-CAM, signed path and region diagnostics, and contrast/cancellation demonstrations. Start at Healthcare investigation → Visual evidence. Read `docs/VISUAL_INVESTIGATION_09.md` for the complete scientific and interaction guide. Existing training, geometry, healthcare and Evidence 08 workflows are retained.
+
+# Visual evidence update 0.7.0
+
+Healthcare investigation now includes Visual evidence. See `docs/VISUAL_EVIDENCE_08.md` for definitions, controls, comparison protocols and limitations.
+
+# Fitting update 0.6.1
+
+See `docs/FITTING_07.md` for the new iteration budgets and dimension diagnostics.
+
 # Pathflow Studio 0.4.0
 
 A fresh local Flask project for training MLPs and CNNs and inspecting exact path measures, their intrinsic metrics, and low-dimensional projections. This directory is independent of the earlier Pathflow Lab prototype. It does not migrate previous databases.

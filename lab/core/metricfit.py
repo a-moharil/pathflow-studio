@@ -1,4 +1,5 @@
 """Versioned, pair-covered metric fitting. Targets are never changed for display."""
+from .fitsettings import dimensions, FitHistory, stop_reason
 import hashlib
 import numpy as np
 from scipy.linalg import eigh,orthogonal_procrustes
@@ -6,7 +7,7 @@ from scipy.optimize import minimize
 from scipy.sparse.csgraph import dijkstra
 from .hyperbolic import metric_graph,diagnostics
 
-VERSION='metric-fit-3'
+VERSION='metric-fit-4'
 
 def pair_design(data):
     n=len(data['nodes']);rng=np.random.default_rng(1024);layers=np.array([v['layer'] for v in data['nodes']]);sources=[]
@@ -64,12 +65,12 @@ def fit_euclidean(initial,pairs,truth,steps=200):
         np.add.at(gradient,i,force);np.add.at(gradient,j,-force)
         if loss<best[0]:best[:]=[loss,X.copy()]
         return loss,gradient.ravel()
-    start=objective(initial.ravel())[0];history.append(dict(iteration=0,objective=start))
+    start=objective(initial.ravel())[0];history=FitHistory(objective,start)
     def callback(flat):
-        if len(history)<100:history.append(dict(iteration=len(history),objective=objective(flat)[0]))
-    solution=minimize(objective,initial.ravel(),jac=True,method='L-BFGS-B',callback=callback,options={'maxiter':steps,'ftol':1e-10,'gtol':1e-7,'maxls':30})
+        history(flat)
+    solution=minimize(objective,initial.ravel(),jac=True,method='L-BFGS-B',callback=callback,options={'maxiter':steps,'maxfun':max(15000,steps*40),'ftol':1e-10,'gtol':1e-7,'maxls':30})
     Y=best[1];Y-=Y.mean(0)
-    return Y,dict(initial_objective=start,best_objective=best[0],iterations=int(solution.nit),evaluations=int(solution.nfev),converged=bool(solution.success),termination=str(solution.message),relative_error_floor=floor,history=history)
+    return Y,dict(initial_objective=start,best_objective=best[0],iterations=int(solution.nit),evaluations=int(solution.nfev),converged=bool(solution.success),termination=str(solution.message),relative_error_floor=floor,history=history.finish(solution),max_iterations=steps,max_evaluations=max(15000,steps*40),stop_reason=stop_reason(solution,steps))
 
 def euclidean_distances(X,pairs):return np.linalg.norm(X[pairs[:,0]]-X[pairs[:,1]],axis=1)
 
@@ -87,7 +88,7 @@ def deformation(truth_a,truth_b,pred_a,pred_b):
 
 def refine(data,steps=200,sensitivity=False):
     design=pair_design(data);T=targets(data,design);outputs={};initial_spectra={};deformations={}
-    for dim in ([2,3,8] if sensitivity else [2,3]):
+    for dim in ([2,3]+dimensions(sensitivity)):
         entries=[]
         for idx,side in enumerate(['s','c']):
             if side not in T:entries.append(dict(status='undefined_measure'));continue
@@ -98,9 +99,10 @@ def refine(data,steps=200,sensitivity=False):
                 if optimization['best_objective']>.06:
                     rng=np.random.default_rng(710+dim);restart=rng.normal(size=initial.shape)*np.median(T[side]['train'])/np.sqrt(2*dim)
                     alternate,other=fit_euclidean(restart,design['train'],T[side]['train'],steps)
+                    attempt_reports=[dict(optimization),dict(other)]
                     attempts=[optimization['best_objective'],other['best_objective']]
                     if other['best_objective']<optimization['best_objective']:Y,optimization=alternate,other
-                    optimization=dict(optimization,restart_objectives=attempts,selection='Smallest fitting objective; validation not used for selection')
+                    optimization=dict(optimization,attempts=attempt_reports,restart_objectives=attempts,selection='Smallest fitting objective; validation not used for selection')
             if idx:
                 R,_=orthogonal_procrustes(Y,np.asarray(entries[0]['positions']));Y=Y@R
             train=diagnostics(euclidean_distances(Y,design['train']),T[side]['train']);validation=diagnostics(euclidean_distances(Y,design['validation']),T[side]['validation'])

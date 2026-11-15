@@ -6,3 +6,7 @@ Pillow==11.1.0
 medmnist==3.0.2
 filelock==3.17.0
 pytest==8.3.5
+
+pandas==2.2.3
+torch==2.6.0
+torchvision==0.21.0

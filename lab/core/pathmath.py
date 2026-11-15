@@ -35,7 +35,9 @@ def graph(model,readout):
                                 for dx in range(kw):
                                     ix=x*sx+dx-px
                                     if 0<=ix<width:u.append((i*h+iy)*width+ix);v.append(dest);weights.append(w[j,i,dy,dx])
-        layers.append((np.asarray(u,dtype=int),np.asarray(v,dtype=int),np.asarray(weights,dtype=float)))
+        weights=np.asarray(weights,dtype=float)
+        if l in getattr(model,'occurrence_factors',{}):weights=weights*model.occurrence_factors[l]
+        layers.append((np.asarray(u,dtype=int),np.asarray(v,dtype=int),weights))
     a=int(readout.get('a',0));b=readout.get('b');classes=sizes[-2]
     scope=readout.get('scope','selected')
     if scope not in ['selected','all']:raise ValueError('Invalid path scope')
@@ -157,8 +159,9 @@ def analyze(model,x,x0,readout,gates=None,geometry_enabled=True):
         if l==len(zs)-1:s=np.ones_like(a)
         else:
             derivative=(a>0).astype(float) if model.config['activation']=='relu' else 1-np.tanh(a)**2
-            if gates and str(l) in gates:
-                for idx,alpha in gates[str(l)].items():derivative[int(idx)]*=alpha
+            effective_gates=getattr(model,'gates',{}) if gates is None else gates
+            if effective_gates and str(l) in effective_gates:
+                for idx,alpha in effective_gates[str(l)].items():derivative[int(idx)]*=alpha
             s=np.divide(dh,dz,out=derivative,where=dz!=0)
         sec.append(s)
     sec.append(np.ones(1));dx=(x.astype(float)-x0.astype(float)).ravel();s,Fs=measure(sizes,layers,np.ones(sizes[0]),[np.ones(n) for n in sizes[1:]]);c,Fc=measure(sizes,layers,dx*dx,sec)
@@ -175,6 +178,37 @@ def analyze(model,x,x0,readout,gates=None,geometry_enabled=True):
         conditional=input_origin_field(layers[0][0],Fc[0],model.shapes[0],c['defined']),
         definition='Input-origin marginal of the normalized complete-path measure; channels summed.',
         normalization='Unit total mass when defined; null when the partition vanishes.')
+    from ..joint.interpret import source_summary
+    out['source_summary']=source_summary(out['input_fields']['conditional'])
+    def layer_map(l,values):
+        shape=list(model.shapes[l+1]) if l+1<len(model.shapes) else [1]
+        values=np.asarray(values,float)
+        name='Readout aggregation' if l>=len(model.layers) else 'Output' if l==len(model.layers)-1 else f'Conv {l+1}' if type(model.layers[l]).__name__=='Conv2d' else f'Dense {l+1}'
+        return dict(layer=l,name=name,shape=shape,
+            native_absolute=values.reshape(shape).sum(0).tolist() if len(shape)==3 else None,
+            unit_absolute=values.tolist() if len(shape)==1 else None)
+    out['layer_fields']=[layer_map(l,np.bincount(v,weights=f,minlength=sizes[l+1])) for l,((u,v,w),f) in enumerate(zip(layers,Fc))] if c['defined'] else None
+
+    bp=np.ones(1);bn=np.zeros(1);bs=np.ones(1)
+    for l in reversed(range(len(layers))):
+        u,v,w=layers[l];coef=w*sec[l][v];wp=np.maximum(coef,0);wn=np.maximum(-coef,0)
+        pp=np.bincount(u,weights=wp*bp[v]+wn*bn[v],minlength=sizes[l]);nn=np.bincount(u,weights=wp*bn[v]+wn*bp[v],minlength=sizes[l])
+        bs=np.bincount(u,weights=coef*bs[v],minlength=sizes[l]);bp,bn=pp,nn
+    pos=np.where(dx>=0,bp,bn)*abs(dx);neg=np.where(dx>=0,bn,bp)*abs(dx)
+    to_image=lambda z:z.reshape(model.shapes[0]).sum(0)
+    p,n=to_image(pos),to_image(neg);net=to_image(dx*bs);total=p+n
+    out['source_diagnostics']=dict(P=p.tolist(),N=n.tolist(),signed=net.tolist(),cancellation=np.divide(total-abs(net),total,out=np.full_like(total,-1),where=total>0).clip(-1,1).tolist(),signed_sum=float(net.sum()),scope='selected readout' if readout.get('scope')!='all' else 'sum of output contrasts; path mass is all-output scope')
+    region=model.config.get('source_region')
+    if region is not None:
+        xx0,yy0,xx1,yy1=map(int,region);h,w=model.shapes[0][-2:]
+        if not 0<=xx0<xx1<=w or not 0<=yy0<yy1<=h:raise ValueError('Source rectangle outside input')
+        mask=np.zeros(model.shapes[0]);mask[:,yy0:yy1,xx0:xx1]=1
+        rm,rf=measure(sizes,layers,dx*dx*mask.ravel(),sec)
+        mass=math.exp(rm['logZ']-c['logZ']) if rm['defined'] and c['defined'] else 0.
+        out['source_region']=dict(region=region,source_mass=mass,status='available' if rm['defined'] else 'zero_region_mass',layers=[dict(layer=l,absolute_mass=(np.bincount(v,weights=f,minlength=sizes[l+1])*mass).tolist(),allocation=np.bincount(v,weights=f,minlength=sizes[l+1]).tolist() if rm['defined'] else None) for l,((u,v,w),f) in enumerate(zip(layers,rf))])
+        for row in out['source_region']['layers']:
+            row.update(layer_map(row['layer'],row['absolute_mass']))
+
     if geometry_enabled:
         S,sg,anchors=geometry(sizes,offset,layers,Fs,model.config['geometry_limit'],model.config['landmarks'],measurement_limit=model.config.get('measurement_limit',model.config['geometry_limit']));out['structural_geometry']=sg
         if c['defined']:

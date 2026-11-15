@@ -48,15 +48,17 @@ def signed_diagnostics(model,x,reference,readout,st):
 
 
 def channel_catalog(model,x,reference,readout,st):
-    conv=[l for l,m in enumerate(model.layers) if isinstance(m,nn.Conv2d)]
+    from .network import hidden_count
+    hidden=hidden_count(model)
+    conv=[l for l,m in enumerate(model.layers) if isinstance(m,nn.Conv2d) and l<hidden]
     layers=[]
     # Two backpropagations supply both endpoints at every hidden layer.
     ends=[]
     for inp in [x,reference]:
         y,hs,zs=model(tensor(inp).requires_grad_(True),trace=True)
-        grads=torch.autograd.grad(scalar(y,readout).sum(),hs[1:-1]) if len(hs)>2 else []
-        ends.append([(h.detach().numpy()[0],g.detach().numpy()[0]) for h,g in zip(hs[1:-1],grads)])
-    for l in range(len(model.layers)-1):
+        grads=torch.autograd.grad(scalar(y,readout).sum(),hs[1:hidden+1]) if hidden else []
+        ends.append([(h.detach().numpy()[0],g.detach().numpy()[0]) for h,g in zip(hs[1:hidden+1],grads)])
+    for l in range(hidden):
         shape=model.shapes[l+1];act,grad=ends[0][l];ref,refgrad=ends[1][l]
         _,v,_=st['layers'][l]
         mass=np.bincount(v,weights=st['fc'][l],minlength=st['sizes'][l+1]).reshape(shape) if st['conditional']['defined'] else None
@@ -70,11 +72,12 @@ def channel_catalog(model,x,reference,readout,st):
             def m(a):return np.atleast_2d(a[k]).tolist() if a is not None else None
             channels.append(dict(index=k,activation=m(act),reference=m(ref),difference=m(act-ref),occupation=m(mass),mass=float(mass[k].sum()) if mass is not None else None,contribution=m(contribution),reference_contribution=m(contribution0)))
         layers.append(dict(layer=l,kind='convolution' if isconv else 'dense',shape=list(shape),channels=channels,gradcam=cam.tolist() if cam is not None else None,reference_gradcam=cam0.tolist() if cam0 is not None else None))
-    return dict(status='available',layers=layers,default_layer=conv[-1] if conv else (len(model.layers)-2),definition='Grad-CAM uses mean spatial gradients of the same readout and postactivation feature maps. Endpoint maps are not a contrast decomposition. Dense layers have unit maps, not Grad-CAM.')
+    return dict(status='available',layers=layers,default_layer=conv[-1] if conv else (hidden-1),definition='Grad-CAM uses mean spatial gradients of the same readout and postactivation feature maps. Endpoint maps are not a contrast decomposition. Dense layers have unit maps, not Grad-CAM.')
 
 
 def connection_catalog(model,st,layer,index):
-    if not 0<=layer<len(model.layers)-1:raise ValueError('Select a hidden layer')
+    from .network import hidden_count
+    if not 0<=layer<hidden_count(model):raise ValueError('Select a hidden layer')
     shape=model.shapes[layer+1]
     if not 0<=index<shape[0]:raise ValueError('Select a valid channel/unit')
     if not isinstance(model.layers[layer],nn.Conv2d):return dict(status='not_applicable',rows=[],reason='Primitive convolution connections require a convolution layer')
@@ -91,7 +94,8 @@ class ChannelModel(nn.Module):
     """Postactivation gate wrapper; same multiplicative gate at both endpoints."""
     def __init__(self,model,layer,index,alpha):
         super().__init__();self.base=model;self.layers=model.layers;self.shapes=model.shapes;self.config=model.config
-        if not 0<=layer<len(self.layers)-1 or not 0<=index<self.shapes[layer+1][0]:raise ValueError('Invalid hidden channel/unit')
+        from .network import hidden_count
+        if not 0<=layer<hidden_count(self) or not 0<=index<self.shapes[layer+1][0]:raise ValueError('Invalid hidden channel/unit')
         if not 0<=alpha<=1:raise ValueError('Attenuation must be in [0,1]')
         size=int(np.prod(self.shapes[layer+1][1:]));self.gates={str(layer):{str(i):alpha for i in range(index*size,(index+1)*size)}}
         self.occurrence_factors=getattr(model,'occurrence_factors',{})

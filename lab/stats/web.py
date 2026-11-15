@@ -283,6 +283,46 @@ def ledger():
     return jsonify(rows=rows, columns=E.LEDGER_COLUMNS)
 
 
+# ------------------------------------------------------------- ruler sensitivity
+
+@web.get('/api/stats/run/<rid>/geometry-records')
+def geometry_records(rid):
+    """Completed native analyses that saved execution edges (eligible for ruler sensitivity)."""
+    info = _info(rid)
+    if info['engine'] != 'native':
+        return jsonify(records=[], note='Ruler sensitivity reads native MLP/CNN analyses; residual-DAG geometry uses its own recorded lengths.')
+    with st.db(root()) as db:
+        rows = db.execute("SELECT j.id, j.payload, o.payload FROM jobs j JOIN observations o ON o.job=j.id "
+                          "WHERE j.run=? AND j.status='completed' ORDER BY o.step", (rid,)).fetchall()
+        rulers = db.execute("SELECT id, payload, status FROM jobs WHERE run=? AND payload LIKE '%ruler_sensitivity%' ORDER BY created DESC", (rid,)).fetchall()
+    records = []
+    for jid, request, summary in rows:
+        summary = json.loads(summary)
+        if not summary.get('structural_geometry'):
+            continue
+        responses = summary['structural_geometry'].get('responses') or {}
+        readout = summary.get('readout') or {}
+        records.append(dict(job=jid, step=summary.get('step'), scope=readout.get('scope', 'selected'), x=summary.get('x'),
+                            reference=summary.get('reference'), reference_type=summary.get('reference_type', 'dataset'),
+                            gated=bool(summary.get('gates')), nodes=summary['structural_geometry'].get('measurement_nodes'),
+                            measured=responses.get('status') not in (None, 'budget_exceeded')))
+    previous = [dict(job=r[0], request=json.loads(r[1]), status=r[2]) for r in rulers]
+    return jsonify(records=records, previous=previous)
+
+
+@web.post('/api/stats/ruler')
+def ruler_submit():
+    from .ruler import validate_request
+    p = request.get_json() or {}
+    rid = p.get('run')
+    info = _info(rid)
+    if info['engine'] != 'native':
+        raise ValueError('Ruler sensitivity reads native MLP/CNN analyses.')
+    params = validate_request(p)
+    payload = dict(kind='ruler_sensitivity', source_job=str(p.get('source_job')), epsilons=params['epsilons'], power=params['power'])
+    return jsonify(id=st.queue_measurement(root(), rid, payload))
+
+
 # ------------------------------------------------------------- presentation mode
 #
 # A workspace-wide switch enforced on the server. While it is on, requests that would
@@ -291,7 +331,7 @@ def ledger():
 
 BLOCKED_IN_PRESENTATION = (
     ('POST', '/api/runs'), ('POST', '/api/datasets/prepare'), ('POST', '/api/joint/create'),
-    ('POST', '/api/joint/data'), ('POST', '/api/auditor/geometry'),
+    ('POST', '/api/joint/data'), ('POST', '/api/auditor/geometry'), ('POST', '/api/stats/ruler'),
 )
 BLOCKED_SUFFIXES = ('/analysis', '/healthcare', '/measure-missing', '/delete', '/analyze', '/measurement-settings')
 

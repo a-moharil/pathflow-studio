@@ -17,7 +17,14 @@ def group_logsum(values,indices,size):
 def graph(model,readout):
     sizes=[int(np.prod(s)) for s in model.shapes]+[1];offset=np.cumsum([0]+sizes)
     layers=[]
+    from .network import SpatialAverage
     for l,layer in enumerate(model.layers):
+        if isinstance(layer,SpatialAverage):
+            # Global spatial averaging: fixed, parameter-free coefficients 1/(H*W) from
+            # every readout-map position (k, y, x) to output k.
+            k,h,width=model.shapes[l];area=h*width
+            u=np.arange(k*area);v=u//area;weights=np.full(k*area,1.0/area)
+            layers.append((u,v,weights));continue
         w=layer.weight.detach().cpu().double().numpy();u=[];v=[];weights=[]
         if isinstance(layer,nn.Linear):
             vv,uu=np.indices(w.shape);u=uu.ravel();v=vv.ravel();weights=w.ravel()
@@ -153,10 +160,11 @@ def analyze(model,x,x0,readout,gates=None,geometry_enabled=True):
     model=model.cpu().double().eval();sizes,offset,layers=graph(model,readout)
     with torch.no_grad():
         y,hs,zs=model(torch.as_tensor(x[None],dtype=torch.float64),gates,True);y0,h0,z0=model(torch.as_tensor(x0[None],dtype=torch.float64),gates,True)
-    sec=[]
+    from .network import hidden_count
+    sec=[];hidden=hidden_count(model)
     for l in range(len(zs)):
         a=zs[l].numpy().ravel();b=z0[l].numpy().ravel();dh=hs[l+1].numpy().ravel()-h0[l+1].numpy().ravel();dz=a-b
-        if l==len(zs)-1:s=np.ones_like(a)
+        if l>=hidden:s=np.ones_like(a)  # linear readout layers carry unit secants
         else:
             derivative=(a>0).astype(float) if model.config['activation']=='relu' else 1-np.tanh(a)**2
             effective_gates=getattr(model,'gates',{}) if gates is None else gates
@@ -183,7 +191,10 @@ def analyze(model,x,x0,readout,gates=None,geometry_enabled=True):
     def layer_map(l,values):
         shape=list(model.shapes[l+1]) if l+1<len(model.shapes) else [1]
         values=np.asarray(values,float)
-        name='Readout aggregation' if l>=len(model.layers) else 'Output' if l==len(model.layers)-1 else f'Conv {l+1}' if type(model.layers[l]).__name__=='Conv2d' else f'Dense {l+1}'
+        kind=type(model.layers[l]).__name__ if l<len(model.layers) else ''
+        name=('Readout aggregation' if l>=len(model.layers) else 'Output · global average' if kind=='SpatialAverage'
+              else 'Output' if l==len(model.layers)-1 else 'Readout map · 1×1 convolution' if l>=hidden
+              else f'Conv {l+1}' if kind=='Conv2d' else f'Dense {l+1}')
         return dict(layer=l,name=name,shape=shape,
             native_absolute=values.reshape(shape).sum(0).tolist() if len(shape)==3 else None,
             unit_absolute=values.tolist() if len(shape)==1 else None)

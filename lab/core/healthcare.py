@@ -16,12 +16,13 @@ def case_analysis(model,x,reference,readout,gates=None):
     with torch.no_grad():
         _,hs,zs=model(torch.as_tensor(x[None],dtype=torch.float64),gates,True)
         _,h0,z0=model(torch.as_tensor(reference[None],dtype=torch.float64),gates,True)
-    sec=[]
+    from .network import hidden_count
+    sec=[];hidden=hidden_count(model)
     for l in range(len(zs)):
         a=zs[l].numpy().ravel();b=z0[l].numpy().ravel()
-        derivative=np.ones_like(a) if l==len(zs)-1 else ((a>0).astype(float) if model.config['activation']=='relu' else 1-np.tanh(a)**2)
+        derivative=np.ones_like(a) if l>=hidden else ((a>0).astype(float) if model.config['activation']=='relu' else 1-np.tanh(a)**2)
         effective_gates=getattr(model,'gates',{}) if gates is None else gates
-        if l<len(zs)-1 and effective_gates and str(l) in effective_gates:
+        if l<hidden and effective_gates and str(l) in effective_gates:
             for idx,alpha in effective_gates[str(l)].items():derivative[int(idx)]*=alpha
         sec.append(np.divide(hs[l+1].numpy().ravel()-h0[l+1].numpy().ravel(),a-b,out=derivative,where=a!=b))
     sec.append(np.ones(1));dx=(x.astype(float)-reference.astype(float)).ravel()
@@ -37,7 +38,7 @@ def case_analysis(model,x,reference,readout,gates=None):
         logbc=cross['logZ']-.5*(result['structural']['logZ']+result['conditional']['logZ'])
         h=float(np.sqrt(max(0.,-np.expm1(min(0.,logbc)))))
     layers_out=[]
-    for l in range(len(model.layers)-1):
+    for l in range(hidden):
         _,v,_=layers[l];shape=model.shapes[l+1];s=np.bincount(v,weights=Fs[l],minlength=sizes[l+1]);c=np.bincount(v,weights=Fc[l],minlength=sizes[l+1])
         def describe(mass):
             if not np.any(mass>0):return None

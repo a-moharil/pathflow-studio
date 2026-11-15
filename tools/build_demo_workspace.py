@@ -6,6 +6,7 @@ is intended for demonstrations and for exercising the statistics views:
 
 * a matched cohort of synthetic MLP runs (optimizer x seed, identical otherwise),
   with scheduled geometry measurements;
+* one fully convolutional CNN (1x1 convolution + global average readout);
 * a narrow healthcare demonstration run with cohort evaluations at an early,
   an intermediate and the final checkpoint, and one saved case;
 * optionally, a PneumoniaMNIST CNN run when that dataset is already prepared.
@@ -79,9 +80,21 @@ def main() -> None:
             drain(root, config['name'])
             runs.append(rid)
 
+    # One fully convolutional CNN (1x1 convolution + global spatial averaging readout),
+    # the CNN form used in the research programme's panels.
+    config = validate(dict(name='Synthetic CNN · fully convolutional readout', dataset='synthetic', model='cnn',
+                           channels=[4, 6, 8], kernel=3, stride=2, padding=1, cnn_readout='gap', activation='relu',
+                           optimizer='Adam', lr=0.003, seed=11, train_size=scale['train_size'], updates=scale['updates'],
+                           checkpoint_every=scale['checkpoint_every'], geometry_every=scale['geometry_every']))
+    rid = st.create(root, config)
+    with st.db(root) as db:
+        db.execute("UPDATE runs SET status='training' WHERE id=?", (rid,))
+    drain(root, config['name'])
+    runs.append(rid)
+
     if args.pneumonia:
         config = validate(dict(name='PneumoniaMNIST CNN · demonstration', dataset='pneumonia', model='cnn',
-                               channels=[4, 6, 8], activation='relu', optimizer='Adam', lr=0.001,
+                               channels=[4, 6, 8], cnn_readout='gap', activation='relu', optimizer='Adam', lr=0.001,
                                train_size=2048, updates=scale['updates'] * 2, checkpoint_every=20,
                                geometry_every=100, seed=7))
         if datasets.status(root, config)['state'] == 'ready':

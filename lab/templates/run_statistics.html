@@ -61,6 +61,23 @@
   <p class="help" id="geometryNote"></p>
   <div id="geometryCharts" class="smallMultiples"></div>
   <div id="geometryTable" class="tableWrap"></div>
+  <div id="rulerCard" class="rulerCard">
+    <h3>Ruler sensitivity <small>λ = (|E<sub>ℓ</sub>|F + ε)<sup>−p</sup> · recorded convention ε = 0.03, p = 1</small></h3>
+    <p class="help">Recomputes BCANw from the saved edge marginals of one analysis at the ε values you give, with the same estimator. The recorded convention is unchanged and is recomputed alongside as a reproduction check. Runs as a queued job in the worker.</p>
+    <div class="fields">
+      <label class="recordLabel">Saved analysis<select id="rulerRecord"></select></label>
+      <label>ε values<input id="rulerEps" value="0.003, 0.01, 0.03, 0.1, 0.3"></label>
+      <label>p<input id="rulerPower" type="number" step="0.25" value="1"></label>
+      <button id="rulerRun" class="primary">Compute ruler sensitivity</button>
+      <span id="rulerState" role="status"></span>
+    </div>
+    <p class="reading" id="rulerReading"></p>
+    <div class="grid">
+      <div id="rulerDstar" class="chart"></div>
+      <div id="rulerXi" class="chart"></div>
+    </div>
+    <div id="rulerTable" class="tableWrap"></div>
+  </div>
 </section>
 
 <section class="card statSection" id="secResponse">

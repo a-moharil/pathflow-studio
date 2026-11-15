@@ -83,3 +83,7 @@ body[data-presentation=on] main::before {
 .fields select#contextSelect, .fields select#cohortSelect { max-width: min(640px, 100%); min-width: 360px; }
 .fields select#stratum { max-width: 360px; }
 .reading:empty { display: none; }
+.rulerCard { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--ws-line); }
+.rulerCard h3 small { font-weight: 400; color: var(--ws-muted); margin-left: 8px; }
+.statTable th { text-transform: none; letter-spacing: 0; }
+.fields select[name=cnn_readout] { max-width: none; min-width: 380px; }

@@ -3,6 +3,7 @@ import numpy as np
 import torch
 from .core.evidence import (state,attributions,select_support,field_b,OccurrenceModel,rescaled,internal_signal,neighborhood,metric_graph,raw_transport,tensor,scalar,identities,VERSION)
 from .core.healthcare import case_analysis
+from .core.network import hidden_count
 from .core.transforms import specification,image,transport,hellinger
 from scipy.sparse.csgraph import dijkstra
 from .core.inspector import signed_diagnostics, channel_catalog, connection_catalog, ChannelModel
@@ -72,7 +73,7 @@ def run(model,x,r,readout,p,progress,dataset=None):
         elif intervention=='channel':
             layer=int(p.get('visual_layer',base['catalog']['default_layer']));index=int(p.get('visual_channel',0))
             # One channel/unit per support; controls retain the same layer and cardinality.
-            count=model.shapes[layer+1][0] if 0<=layer<len(model.layers)-1 else 0
+            count=model.shapes[layer+1][0] if 0<=layer<hidden_count(model) else 0
             if not 0<=index<count:raise ValueError('Select a valid hidden channel/unit')
             rng=np.random.default_rng(909);controls=rng.choice(count,min(3,count),replace=False)
             selections=[('Selected channel/unit',index)]+[(f'Random channel/unit {j+1}',int(k)) for j,k in enumerate(controls)]
@@ -106,7 +107,7 @@ def run(model,x,r,readout,p,progress,dataset=None):
     elif mode=='rescale':
         layer=int(p.get('rescale_layer',0));index=int(p.get('rescale_index',0));frames=[]
         factors=[.1,.31622776601683794,1.,3.1622776601683795,10.]
-        original_signal=internal_signal(model,x,readout,layer,index) if 0<=layer<len(model.layers)-1 and 0<=index<model.shapes[layer+1][0] else None
+        original_signal=internal_signal(model,x,readout,layer,index) if 0<=layer<hidden_count(model) and 0<=index<model.shapes[layer+1][0] else None
         if original_signal is None:raise ValueError('Choose an existing hidden layer and channel/unit')
         baseline_row=dijkstra(metric_graph(st,'fs'),directed=False,indices=0)
         if not np.isfinite(baseline_row).all():raise ValueError('Rescaling metric audit requires a connected execution graph; this architecture leaves disconnected input nodes')

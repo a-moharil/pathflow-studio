@@ -16,7 +16,8 @@ def brief(result):
 
 
 def selected_units(model,layer,index):
-    if not 0<=layer<len(model.layers)-1:raise ValueError('Select a hidden layer')
+    from .core.network import hidden_count
+    if not 0<=layer<hidden_count(model):raise ValueError('Select a hidden layer')
     shape=model.shapes[layer+1];count=shape[0]
     if not 0<=index<count:raise ValueError('Channel or unit index is outside the layer')
     size=int(np.prod(shape[1:])) if len(shape)>1 else 1

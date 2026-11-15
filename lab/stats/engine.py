@@ -334,7 +334,7 @@ def cohort_statistics(result: dict) -> dict:
 
 FACTORS = ['optimizer', 'activation', 'lr', 'seed', 'widths', 'channels', 'model', 'batch_size', 'decay', 'momentum', 'train_size']
 IDENTITY_KEYS = ['dataset', 'model', 'task']
-ARCHITECTURE_KEYS = ['widths', 'channels', 'head_widths', 'cnn_head', 'kernel', 'stride', 'padding', 'bias']
+ARCHITECTURE_KEYS = ['widths', 'channels', 'head_widths', 'cnn_head', 'cnn_readout', 'kernel', 'kernels', 'stride', 'padding', 'bias']
 # Hyperparameters that belong to one level of a factor; they cannot match across levels.
 COUPLED = {'optimizer': {'lr', 'momentum', 'beta1', 'beta2', 'eps', 'alpha', 'centered', 'amsgrad', 'dampening', 'nesterov'}}
 

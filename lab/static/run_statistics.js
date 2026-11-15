@@ -276,6 +276,77 @@
           hovermode: 'closest', margin: { l: 190, r: 16, t: 16, b: 48 }, yaxis: { automargin: true, autorange: 'reversed' } });
   }
 
+  // -------------------------------------------------------- ruler sensitivity
+  let rulerRecords = [];
+
+  async function loadRulerRecords() {
+    const d = await api(`/api/stats/run/${rid}/geometry-records`);
+    rulerRecords = d.records;
+    const card = document.getElementById('rulerCard');
+    card.hidden = host.dataset.engine !== 'native';
+    const select = document.getElementById('rulerRecord');
+    const previous = select.value;
+    select.replaceChildren(...d.records.map(r => new Option(
+      `Update ${r.step} · ${r.scope === 'all' ? 'all outputs' : 'selected readout'} · test[${r.x}] vs ${r.reference_type === 'zero' ? 'zero' : 'test[' + r.reference + ']'}${r.gated ? ' · gated' : ''} · ${r.nodes} nodes${r.measured ? '' : ' · BCANw not measured'}`, r.job)));
+    if (!d.records.length) select.append(new Option('No saved geometry analysis yet', ''));
+    if (previous && d.records.some(r => r.job === previous)) select.value = previous;
+    const done = (d.previous || []).find(p => p.status === 'completed');
+    if (done && !document.getElementById('rulerTable').childElementCount) {
+      select.value = done.request.source_job;
+      document.getElementById('rulerEps').value = done.request.epsilons.join(', ');
+      document.getElementById('rulerPower').value = done.request.power;
+      renderRuler((await api('/api/job/' + done.job)).data);
+    }
+  }
+
+  async function runRuler() {
+    const source = document.getElementById('rulerRecord').value;
+    if (!source) { showError(Error('Choose a saved geometry analysis.')); return; }
+    const state = document.getElementById('rulerState');
+    try {
+      clearError();
+      document.getElementById('rulerRun').disabled = true;
+      const job = await api('/api/stats/ruler', { run: rid, source_job: source, epsilons: document.getElementById('rulerEps').value, power: +document.getElementById('rulerPower').value });
+      const data = await awaitJob(job.id, t => { state.textContent = t; });
+      state.textContent = `Computed in ${data.seconds} s · ${data.nodes} nodes`;
+      renderRuler(data);
+    } catch (e) { showError(e); state.textContent = ''; }
+    finally { document.getElementById('rulerRun').disabled = false; }
+  }
+
+  function renderRuler(data) {
+    const traces = (key, transform = v => v) => data.sides.filter(s => s.status === 'available').map(s => StatsUI.line(
+      s.side === 'structural' ? 'Structural' : 'Conditional', s.rows.map(r => r.epsilon), s.rows.map(r => transform(r[key])),
+      s.side === 'structural' ? C.structural : C.conditional, { hovertemplate: 'ε %{x}<br>%{y:.4g}<extra>' + s.side + '</extra>' }));
+    const recorded = [{ type: 'line', x0: data.recorded.epsilon, x1: data.recorded.epsilon, yref: 'paper', y0: 0, y1: 1, line: { color: '#9aa6b8', dash: 'dot', width: 1 } }];
+    const note = [{ x: Math.log10(data.recorded.epsilon), yref: 'paper', y: 1.02, text: 'recorded ε', showarrow: false, font: { size: 10, color: '#65748a' } }];
+    StatsUI.plot('rulerDstar', traces('dstar'), { xaxis: { title: 'ε (log scale)', type: 'log' }, yaxis: { title: 'd* · maximal qualified exponent' }, shapes: recorded, annotations: note, hovermode: 'closest' });
+    StatsUI.plot('rulerXi', traces('floor_fraction'), { xaxis: { title: 'ε (log scale)', type: 'log' }, yaxis: { title: 'Edges at the ε floor (|E_ℓ|F < ε)', tickformat: '.0%', range: [0, 1] }, shapes: recorded, annotations: note, hovermode: 'closest' });
+    const rows = data.sides.flatMap(s => s.rows.map(r => ({ ...r, side: s.side })));
+    StatsUI.table('rulerTable', [
+      { label: 'Measure', render: r => r.side === 'structural' ? 'Structural' : 'Conditional' },
+      { label: 'ε', num: true, render: r => fmt(r.epsilon) + (r.recorded_convention ? ' (recorded)' : '') },
+      { label: 'p', num: true, render: r => fmt(r.power) },
+      { label: 'd*', num: true, render: r => fmt(r.dstar, 3) },
+      { label: 'd_eff', num: true, render: r => fmt(r.deff, 3) },
+      { label: 'ξ₅₀ / diameter', num: true, render: r => fmt(r.xi50_over_diameter, 3) },
+      { label: 'Qualified windows', num: true, render: r => `${r.qualified_windows} / ${r.scales}` },
+      { label: 'Edges at floor', num: true, render: r => StatsUI.pct(r.floor_fraction) }
+    ], rows);
+    const parts = [];
+    for (const s of data.sides) {
+      if (s.status !== 'available') { parts.push(`${s.side}: measure undefined.`); continue; }
+      const d = s.rows.map(r => r.dstar).filter(v => v !== null);
+      const span = d.length ? `d* ranges ${fmt(Math.min(...d), 3)}–${fmt(Math.max(...d), 3)} over ε ${fmt(s.rows[0].epsilon)}–${fmt(s.rows.at(-1).epsilon)}` : 'no qualified window at any ε';
+      const repro = s.reproduction ? (s.reproduction.reproduced ? 'recomputation at the recorded convention reproduces the saved d* and ξ₅₀' : `recomputation at the recorded convention gives d* ${fmt(s.reproduction.recomputed_dstar, 4)} against the saved ${fmt(s.reproduction.saved_dstar, 4)}`) : 'p differs from the recorded convention, so no reproduction check applies';
+      parts.push(`${s.side === 'structural' ? 'Structural' : 'Conditional'}: ${span}; ${repro}.`);
+    }
+    document.getElementById('rulerReading').textContent = `Update ${data.step}, ${data.nodes} nodes, p = ${fmt(data.request.power)}. ` + parts.join(' ') +
+      ' A d* that moves strongly with ε is conditional on the declared ruler; report the ε used alongside it.';
+  }
+
+  document.getElementById('rulerRun').onclick = runRuler;
+
   // ----------------------------------------------------------------- ledger
   function ledgerRequest(format) {
     return { run: rid, context: document.getElementById('contextSelect').value, cohort: document.getElementById('cohortSelect').value || null, format };
@@ -309,6 +380,7 @@
   document.getElementById('refreshStats').onclick = () => init().catch(showError);
 
   async function init() {
+    loadRulerRecords().catch(showError);
     await loadContexts();
     await loadCohorts();
     await loadStats();

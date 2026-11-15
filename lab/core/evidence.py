@@ -6,6 +6,7 @@ from torch import nn
 from scipy.sparse import coo_matrix
 from scipy.sparse.csgraph import dijkstra
 from .pathmath import graph, measure
+from .network import hidden_count
 from .healthcare import case_analysis
 from .transforms import image, specification, transport, hellinger
 
@@ -22,12 +23,13 @@ def state(model, x, reference, readout):
     with torch.no_grad():
         _, hs, zs = model(tensor(x), trace=True)
         _, h0, z0 = model(tensor(reference), trace=True)
-    sec=[]
+    from .network import hidden_count
+    sec=[];hidden=hidden_count(model)
     for l, (z,b) in enumerate(zip(zs,z0)):
         a=z.numpy().ravel();b=b.numpy().ravel()
-        derivative=np.ones_like(a) if l==len(zs)-1 else ((a>0).astype(float) if model.config['activation']=='relu' else 1-np.tanh(a)**2)
+        derivative=np.ones_like(a) if l>=hidden else ((a>0).astype(float) if model.config['activation']=='relu' else 1-np.tanh(a)**2)
         
-        for idx,alpha in getattr(model,'gates',{}).get(str(l),{}).items():derivative[int(idx)]*=alpha
+        for idx,alpha in (getattr(model,'gates',{}).get(str(l),{}) if l<hidden else {}).items():derivative[int(idx)]*=alpha
         sec.append(np.divide(hs[l+1].numpy().ravel()-h0[l+1].numpy().ravel(),a-b,out=derivative,where=a!=b))
     sec.append(np.ones(1));dx=(np.asarray(x,float)-reference).ravel()
     sm,fs=measure(sizes,layers,np.ones(sizes[0]),[np.ones(n) for n in sizes[1:]])
@@ -74,7 +76,8 @@ def attributions(model,x,reference,readout,steps=64):
 
 
 def select_support(model,st,x,reference,readout,options):
-    conv=[l for l,m in enumerate(model.layers) if isinstance(m,nn.Conv2d)]
+    from .network import hidden_count
+    conv=[l for l,m in enumerate(model.layers) if isinstance(m,nn.Conv2d) and l<hidden_count(model)]
     if not conv: return dict(status='not_applicable',reason='Field B and primitive convolution interventions require a CNN',layers=[],kind=options.get('support_kind','occurrence'))
     chosen=options.get('support_layers','0')
     layers=conv if chosen=='all' else [int(chosen)]
@@ -135,8 +138,9 @@ class OccurrenceModel(nn.Module):
                     uu=torch.as_tensor(u[ids],device=x.device);vv=torch.as_tensor(v[ids],device=x.device);gain=torch.as_tensor(w[ids]*(f[ids]-1),dtype=x.dtype,device=x.device)
                     correction=torch.zeros_like(z).flatten(1).index_add(1,vv,x.flatten(1)[:,uu]*gain)
                     z=z+correction.reshape_as(z)
-            zs.append(z);x=(torch.relu(z) if self.config['activation']=='relu' else torch.tanh(z)) if l<len(self.layers)-1 else z
-            if gates and str(l) in gates:
+            hidden=hidden_count(self)
+            zs.append(z);x=(torch.relu(z) if self.config['activation']=='relu' else torch.tanh(z)) if l<hidden else z
+            if gates and str(l) in gates and l<hidden:
                 g=torch.ones(x[0].numel(),dtype=x.dtype,device=x.device)
                 for i,a in gates[str(l)].items():g[int(i)]=float(a)
                 x=x*g.reshape(x.shape[1:])
@@ -146,7 +150,8 @@ class OccurrenceModel(nn.Module):
 
 def rescaled(model,layer,index,factor):
     if model.config['activation']!='relu':raise ValueError('Exact compensated rescaling is available only for ReLU')
-    if not 0<=layer<len(model.layers)-1:raise ValueError('Select a hidden layer')
+    from .network import hidden_count
+    if not 0<=layer<hidden_count(model):raise ValueError('Select a hidden layer')
     if not 0<=index<model.shapes[layer+1][0] or not .1<=factor<=10:raise ValueError('Invalid channel/unit or rescale factor; use 0.1..10')
     m=copy.deepcopy(model);a=m.layers[layer];b=m.layers[layer+1]
     with torch.no_grad():

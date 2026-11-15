@@ -37,6 +37,8 @@ Every run-scoped page renders the same workspace bar (`lab/stats/navigation.py`)
 - `lab/stats/index.py`: indexed scalar observables from both engines, synchronised lazily and incrementally.
 - `lab/stats/engine.py`: design-explicit statistics (temporal, realisation, coupling, cohort, cross-run, ledger).
 - `lab/stats/web.py`: run overview and statistics pages, lean feeds, registry summary and presentation guard.
+- `lab/stats/ruler.py`: ruler sensitivity of BCANw to ε and p from saved edge marginals (queued job).
+- `lab/core/network.py`: also defines `SpatialAverage` (fixed global averaging) and `hidden_count`, the boundary between activated hidden layers and the linear readout.
 - `lab/static/poller.js`: adaptive polling and incremental run feeds.
 - `lab/static/workspace.js`: workspace bar, carried context and presentation switch.
 

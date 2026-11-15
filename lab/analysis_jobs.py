@@ -9,7 +9,8 @@ def validate_gates(m,gates):
     result={}
     for l,units in gates.items():
         layer=int(l)
-        if not 0<=layer<len(m.layers)-1:raise ValueError('Only hidden activations may be intervened on')
+        from .core.network import hidden_count
+        if not 0<=layer<hidden_count(m):raise ValueError('Only hidden activations may be intervened on')
         n=int(np.prod(m.shapes[layer+1]));result[str(layer)]={}
         for i,alpha in units.items():
             if not 0<=int(i)<n or not 0<=float(alpha)<=1:raise ValueError('Invalid unit or attenuation')
@@ -21,6 +22,9 @@ def process_job(root,j):
     if kind.startswith('healthcare_'):
         from .healthcare_jobs import process
         return process(root,j)
+    if kind=='ruler_sensitivity':
+        from .stats.ruler import process as ruler_process
+        return ruler_process(root,j)
     if kind=='download':
         d=load(root,c,True);result={split:int(len(d[split+'_y'])) for split in ['train','val','test']}
     else:

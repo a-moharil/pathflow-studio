@@ -1,4 +1,4 @@
-# Pathflow Studio 0.14.0
+# Pathflow Studio 0.15.0
 
 General design now offers MLP, CNN and residual models for classification/regression. Healthcare Investigation has its own domain entry. Small/custom residual builders and the ResNet-50 preset share the tensor response engine. CNN hidden dense heads are optional. Field A adds mass contours, explicit display scales, signed diagnostics and selected-source route tracing.
 
@@ -178,3 +178,13 @@ switch makes the server refuse new computation while saved results stay browsabl
 demonstration workspace from real computations; start it with
 `PATHFLOW_HOME=demo_workspace python run.py`. See
 [docs/EFFICIENT_REALISATION_22.md](docs/EFFICIENT_REALISATION_22.md).
+
+## Version 0.15.0 fully convolutional readout and ruler sensitivity
+
+CNNs can now end in a 1×1 convolution followed by global spatial averaging. This is the
+fully convolutional form of the research programme's CNN panels, and it adds no dense layer.
+Kernel sizes can be set per layer. The dense hidden head is optional and off by default.
+Existing runs keep the dense readout. Run Statistics adds a ruler sensitivity diagnostic: it
+recomputes BCANw from a saved analysis at chosen ε (λ = (|E_ℓ|F + ε)^−p) and checks that the
+recorded convention reproduces the saved geometry. See
+[docs/READOUT_RULER_23.md](docs/READOUT_RULER_23.md).

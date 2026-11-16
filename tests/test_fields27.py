@@ -28,7 +28,11 @@ def test_config_readout_and_cache_names(tmp_path):
         assert class_count(c) == count and Network(c).shapes[-1] == (count,)
         assert Network(validate(dict(dataset=name, model='cnn', cnn_readout='gap'))).shapes[-1][0] == count
     c = validate(dict(dataset='synthetic-orbits', ambiguity='0.5'))
-    assert c['ambiguity'] == .5 and datasets.cache_path(tmp_path, c).name == 'synthetic-orbits_42_512_a50.npz'
+    assert c['ambiguity'] == .5 and c['field_version'] == 2
+    assert datasets.cache_path(tmp_path, c).name == 'synthetic-orbits_42_512_a50_v2.npz'
+    # A run recorded before 0.16.3 (no field_version) keeps its cache name and rendering.
+    legacy = {k: v for k, v in c.items() if k != 'field_version'}
+    assert datasets.cache_path(tmp_path, legacy).name == 'synthetic-orbits_42_512_a50.npz'
     assert 'ambiguity' not in validate(dict(dataset='synthetic', ambiguity=.5))
     # Existing cache names are unchanged.
     assert datasets.cache_path(tmp_path, validate(dict(dataset='synthetic'))).name == 'synthetic_42_512.npz'
@@ -54,3 +58,12 @@ def test_train_and_analyse_field_run(tmp_path):
         pass
     job = client.get(f'/api/job/{jid}').json
     assert job['status'] == 'completed' and len(job['data']['logits']) == 4
+
+
+def test_rendering_versions():
+    """Version 2 renders a bright positive phase on a dark ground; version 1 (0.16.2) is
+    reproduced exactly for runs created with it."""
+    v1, v2 = generate('synthetic-orbits', 5, 64, .35, 1), generate('synthetic-orbits', 5, 64, .35)
+    assert abs(v1['train_x'].mean() - .5) < .05 and v2['train_x'].mean() < .25
+    assert np.array_equal(np.bincount(v1['train_y']), np.bincount(v2['train_y']))
+    assert np.array_equal(v1['train_x'], generate('synthetic-orbits', 5, 64, .35, 1)['train_x'])

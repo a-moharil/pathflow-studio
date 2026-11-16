@@ -38,4 +38,6 @@ def create_app(root=None):
     app.context_processor(run_navigation)
     from .cases import web as cases_web
     app.register_blueprint(cases_web)
+    from .guide import web as guide_web
+    app.register_blueprint(guide_web)
     return app

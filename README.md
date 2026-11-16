@@ -1,4 +1,8 @@
-# Pathflow Studio 0.16.2 · structural overhaul
+# Pathflow Studio 0.17.0 · geometry guide
+
+0.17.0 adds an **About** page (header, or `/about`) rendered from `docs/GEOMETRY_GUIDE.md`: the framework, how to read a geometry picture, a field guide to the geometric forms we observe (filament, tripod, sheet and lobe, bushy star, core and arms, ball) on a concentrating–diffusing axis, what shapes them, how to test what they imply, and recipes. Geometry now reports the routing concentration of the input layer. Fixes an embedding crash on ill-conditioned conditional carriers.
+
+0.16.3 renders the synthetic field datasets on a dark ground. The 0.16.2 mid-grey ground made most first-layer ReLU units inactive during training, so conditional realisations were sparse; see `docs/SYNTHETIC_FIELDS_27.md`. Runs created with 0.16.2 keep their data.
 
 0.16.2 adds two synthetic field datasets for geometry demonstrations (Synthetic interference, 3 classes; Synthetic orbits, 4 classes) with an ambiguity control in Build, and makes Library rows open their run on click. See `docs/SYNTHETIC_FIELDS_27.md`.
 

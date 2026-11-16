@@ -254,3 +254,28 @@ body[data-presentation=on] { background: #E4E8EE; }
 tr.openRow { cursor: pointer; }
 tr.openRow .runLink { color: var(--ink); font-weight: 600; text-decoration: none; }
 tr.openRow:hover .runLink { color: var(--navy); text-decoration: underline; text-underline-offset: 3px; }
+
+/* Routing readout above the geometry panels */
+.routingNote { font-family: var(--font-mono); font-stretch: 87.5%; font-size: 11px; color: var(--graphite); background: var(--wash); border: 1px solid var(--hairline); border-left: 2px solid var(--navy); padding: 9px 12px; margin: 0 0 14px; }
+
+/* About · guide */
+.aboutLayout { display: grid; grid-template-columns: minmax(180px, 230px) minmax(0, 1fr); gap: 48px; align-items: start; }
+.aboutToc { position: sticky; top: 132px; display: flex; flex-direction: column; gap: 9px; font-size: 12.5px; }
+.aboutToc a { color: var(--graphite); text-decoration: none; }
+.aboutToc a:hover { color: var(--navy); }
+.guide { max-width: 860px; }
+.guide h1 { margin-top: 0; }
+.guide h2 { margin: 44px 0 12px; padding-top: 14px; border-top: 1px solid var(--hairline); font-size: 20px; }
+.guide p, .guide li { font-size: 14.5px; line-height: 1.68; color: var(--ink); }
+.guide li { margin: 4px 0; }
+.guide table { width: 100%; margin: 14px 0 20px; background: var(--porcelain); }
+.guide td, .guide th { padding: 8px 10px; vertical-align: top; }
+.guideItem { display: grid; grid-template-columns: 220px minmax(0, 1fr); column-gap: 24px; align-items: start; margin: 22px 0; padding: 20px 22px; background: var(--porcelain); border: 1px solid var(--hairline); border-radius: var(--radius); position: relative; }
+.guideItem::before { content: ''; position: absolute; top: -1px; left: -1px; width: 18px; height: 2px; background: var(--navy); }
+.guideItem h3 { grid-column: 1 / -1; margin: 0 0 12px; font-family: var(--font-display); font-stretch: 112%; font-size: 17px; font-weight: 620; }
+.guideItem figure { grid-column: 1; grid-row: 2 / span 6; margin: 0; }
+.guideItem figure img { width: 100%; border-radius: var(--radius); border: 1px solid var(--navy); display: block; }
+.guideItem figcaption { font-family: var(--font-mono); font-stretch: 87.5%; font-size: 10px; color: var(--muted); margin-top: 6px; line-height: 1.45; }
+.guideItem p { grid-column: 2; margin: 0 0 10px; font-size: 14px; }
+.guide figure:not(.guideItem figure) img { max-width: 360px; }
+@media (max-width: 900px) { .aboutLayout { grid-template-columns: 1fr; } .aboutToc { position: static; } .guideItem { grid-template-columns: 1fr; } .guideItem figure, .guideItem p { grid-column: 1; grid-row: auto; } }

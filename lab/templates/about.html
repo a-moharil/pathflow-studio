@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="aboutLayout">
+  <nav class="aboutToc" aria-label="On this page">
+    <p class="eyebrow">ABOUT · GUIDE</p>
+    {% for slug, title in toc %}<a href="#{{slug}}">{{title}}</a>{% endfor %}
+    <p class="help">Source: <code>docs/GEOMETRY_GUIDE.md</code></p>
+  </nav>
+  <article class="guide">{{ body|safe }}</article>
+</div>
+{% endblock %}

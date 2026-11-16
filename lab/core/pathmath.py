@@ -104,7 +104,13 @@ def bcan(D,strength):
 def embed_distances(D,anchors):
     # Landmark classical MDS + out-of-sample Nyström coordinates, no force repulsion.
     A=D[:,anchors];sq=A*A;row=sq.mean(1);grand=sq.mean();B=-.5*(sq-row[:,None]-row[None,:]+grand)
-    vals,vec=eigh(B,subset_by_index=[max(0,len(B)-3),len(B)-1]);order=np.argsort(vals)[::-1];vals=vals[order];vec=vec[:,order];keep=vals>max(1e-12,float(vals.max())*1e-12)
+    vals,vec=eigh(B,subset_by_index=[max(0,len(B)-3),len(B)-1])
+    if len(vals)<min(3,len(B)):
+        # The partial LAPACK solver can return no eigenpairs for an ill-conditioned matrix
+        # (seen on a conditional carrier with a wide length range). The full symmetric
+        # solver is exact here; only this case changes, every other embedding is unchanged.
+        vals,vec=np.linalg.eigh(B);vals=vals[-3:];vec=vec[:,-3:]
+    order=np.argsort(vals)[::-1];vals=vals[order];vec=vec[:,order];keep=vals>max(1e-12,float(vals.max())*1e-12)
     vals=vals[keep];vec=vec[:,keep];cross=-.5*(D.T**2-(D.T**2).mean(1)[:,None]-row[None,:]+grand)
     Y=cross@vec/np.sqrt(vals)[None,:] if len(vals) else np.zeros((D.shape[1],0))
     Y=np.pad(Y,((0,0),(0,3-Y.shape[1])));pred=np.linalg.norm(Y[anchors,None,:]-Y[None,:,:],axis=2)

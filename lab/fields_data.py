@@ -37,6 +37,14 @@ FIELD_DATASETS = {
 }
 
 DEFAULT_AMBIGUITY = 0.35
+# Rendering version. 1 (0.16.2): pattern on a mid-grey ground. 2 (0.16.3): bright positive
+# phase on a dark ground. Version 1 gave the inputs a mean of about 0.5 with modest
+# contrast; the shared offset then decided the sign of most first-layer pre-activations,
+# and in training 10-14 of 16 first-layer ReLU units died (orbits, 5 x 16 MLP), so the
+# conditional realisation had zero mass on most input edges. Version 2 brings the mean to
+# about 0.16, as in the bars dataset, and keeps most first-layer units alive. Version 1 is
+# kept so that runs created with it regenerate identical data.
+FIELD_VERSION = 2
 SPLITS = (('train', None), ('val', 96), ('test', 120))
 _GRID = np.linspace(-1.0, 1.0, 28, dtype='float64')
 _Y, _X = np.meshgrid(_GRID, _GRID, indexing='ij')
@@ -50,12 +58,15 @@ def class_names(name: str) -> list[str]:
     return list(FIELD_DATASETS[name]['classes'])
 
 
-def _finish(field: np.ndarray, envelope: np.ndarray, rng) -> np.ndarray:
-    image = 0.5 + 0.42 * field * envelope + rng.normal(0.0, 0.035, field.shape)
+def _finish(field: np.ndarray, envelope: np.ndarray, rng, version: int = FIELD_VERSION) -> np.ndarray:
+    if version == 1:
+        image = 0.5 + 0.42 * field * envelope + rng.normal(0.0, 0.035, field.shape)
+    else:
+        image = 0.06 + 0.86 * envelope * np.maximum(field, 0.0) + rng.normal(0.0, 0.035, field.shape)
     return np.clip(image, 0.0, 1.0)
 
 
-def _interference(label: int, ambiguity: float, rng) -> np.ndarray:
+def _interference(label: int, ambiguity: float, rng, version: int) -> np.ndarray:
     spread = np.deg2rad(6.0 + 24.0 * ambiguity)
     theta = np.deg2rad(60.0 * label) + rng.normal(0.0, spread)
     freq = rng.uniform(2.0, 2.8)
@@ -70,7 +81,7 @@ def _interference(label: int, ambiguity: float, rng) -> np.ndarray:
     cx, cy = rng.uniform(-0.12, 0.12, 2)
     width = rng.uniform(0.6, 0.85)
     envelope = np.exp(-((_X - cx) ** 2 + (_Y - cy) ** 2) / (2 * width ** 2))
-    return _finish((primary + weight * nuisance) / (1 + weight), envelope, rng)
+    return _finish((primary + weight * nuisance) / (1 + weight), envelope, rng, version)
 
 
 def _polar_wave(kind: int, rng, cx: float, cy: float, jitter: float) -> np.ndarray:
@@ -85,7 +96,7 @@ def _polar_wave(kind: int, rng, cx: float, cy: float, jitter: float) -> np.ndarr
     return np.cos(2 * np.pi * rng.uniform(1.4, 2.0) * r + m * theta + phase)
 
 
-def _orbits(label: int, ambiguity: float, rng) -> np.ndarray:
+def _orbits(label: int, ambiguity: float, rng, version: int) -> np.ndarray:
     cx, cy = rng.uniform(-0.08, 0.08, 2)
     jitter = 0.25 + 0.9 * ambiguity
     primary = _polar_wave(label, rng, cx, cy, jitter)
@@ -94,11 +105,11 @@ def _orbits(label: int, ambiguity: float, rng) -> np.ndarray:
     weight = 0.15 + 0.6 * ambiguity
     r = np.hypot(_X - cx, _Y - cy)
     envelope = np.exp(-(r / 0.88) ** 4) * (1 - np.exp(-(r / 0.12) ** 2) * 0.6)
-    return _finish((primary + weight * secondary) / (1 + weight), envelope, rng)
+    return _finish((primary + weight * secondary) / (1 + weight), envelope, rng, version)
 
 
-def generate(name: str, seed: int, train_size: int, ambiguity: float) -> dict:
-    """Deterministic splits: the same (name, seed, size, ambiguity) gives identical arrays."""
+def generate(name: str, seed: int, train_size: int, ambiguity: float, version: int = FIELD_VERSION) -> dict:
+    """Deterministic splits: the same (name, seed, size, ambiguity, version) gives identical arrays."""
     make = {'synthetic-interference': _interference, 'synthetic-orbits': _orbits}[name]
     count = len(FIELD_DATASETS[name]['classes'])
     out = {}
@@ -106,6 +117,6 @@ def generate(name: str, seed: int, train_size: int, ambiguity: float) -> dict:
         n = train_size if n is None else n
         rng = np.random.default_rng([seed, index, int(round(ambiguity * 1000))])
         y = np.arange(n) % count
-        x = np.stack([make(int(label), ambiguity, rng) for label in y])[:, None].astype('float32')
+        x = np.stack([make(int(label), ambiguity, rng, version) for label in y])[:, None].astype('float32')
         out.update({split + '_x': x, split + '_y': y.astype('int64'), split + '_ids': np.arange(n)})
     return out

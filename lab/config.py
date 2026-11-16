@@ -70,7 +70,10 @@ def validate(raw):
         try:c['ambiguity']=round(float(raw.get('ambiguity',.35)),2)
         except (TypeError,ValueError):raise ValueError('Ambiguity must be a number in 0..0.8')
         if not 0<=c['ambiguity']<=.8:raise ValueError('Ambiguity must be in 0..0.8')
-    else:c.pop('ambiguity',None)
+        c['field_version']=int(raw.get('field_version',2))
+        if c['field_version'] not in (1,2):raise ValueError('Unknown field dataset version')
+    else:
+        c.pop('ambiguity',None);c.pop('field_version',None)
     c['name']=str(c['name'])[:100];c['bias']=bool(c['bias'])
     estimate(c)
     return c

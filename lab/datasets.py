@@ -11,7 +11,9 @@ def _read_cache(path):
 def _stem(c):
     stem=f"{c['dataset']}_{c['seed']}_{c['train_size']}"
     # Field datasets also depend on their ambiguity; existing cache names are unchanged.
-    if is_field(c['dataset']):stem+=f"_a{int(round(c.get('ambiguity',DEFAULT_AMBIGUITY)*100)):02d}"
+    if is_field(c['dataset']):
+        stem+=f"_a{int(round(c.get('ambiguity',DEFAULT_AMBIGUITY)*100)):02d}"
+        if c.get('field_version',1)>1:stem+=f"_v{c['field_version']}"
     return stem
 
 def load(root,c,download=False):
@@ -21,7 +23,8 @@ def load(root,c,download=False):
         return _read_cache(str(cache))
     rng=np.random.default_rng(c['seed']);out={}
     if is_field(c['dataset']):
-        out=generate(c['dataset'],c['seed'],c['train_size'],c.get('ambiguity',DEFAULT_AMBIGUITY))
+        # Runs recorded before 0.16.3 have no field_version and keep the version-1 rendering.
+        out=generate(c['dataset'],c['seed'],c['train_size'],c.get('ambiguity',DEFAULT_AMBIGUITY),c.get('field_version',1))
     elif c['dataset'] in ['synthetic','synthetic-regression']:
         for split,n in [('train',c['train_size']),('val',64),('test',80)]:
             y=np.arange(n)%2;x=rng.normal(.1,.07,(n,1,28,28)).astype('float32')

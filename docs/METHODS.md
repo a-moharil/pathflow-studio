@@ -39,13 +39,25 @@ Local effective dimensions are negative OLS slopes of log box count against log 
 
 These quantities are finite-scale responses. They do not establish a universal fractal dimension. In version 0.4 the projection and measurement budgets are independent. A landmark display may accompany full-distance BCANw measurements. If the separate measurement budget is exceeded, no approximate substitute BCANw value is reported.
 
+## Euclidean pictures (metric-fit-5, from 0.17.1)
+
+The displayed coordinates are stress fits to the intrinsic carrier distances on a fixed, reproducible design of fitting pairs; a disjoint set of diagnostic pairs reports held-out stress. The fit is a picture of the measured geometry. It never feeds back into any measured quantity (H₁, S_def, η₁, η₂, d\*, d_eff and the routing readout are computed on the graph itself).
+
+1. **2-D** starts from the spectral (classical scaling) layout of the sampled source distances and is refined by L-BFGS.
+2. **3-D** starts from the settled 2-D picture plus the third spectral axis, entering at one tenth of the 2-D spread, so the fit uses the third direction only as far as the distances require it. The result is rotated (an orthogonal transformation, which changes no distance) so that its best two-dimensional shadow lies on the 2-D picture. Diagnostic 8/16/32-D fits continue the same chain.
+3. **Settling.** A fit stops when L-BFGS meets its own tolerance or when the objective has improved by less than 0.2 % over the last 100 iterations (never before iteration 300). The ceiling is 3,000 iterations per attempt (adjustable up to 5,000). A fit that reaches the ceiling is reported as *not settled*, with its last 100-iteration improvement, and the viewer says so on the card.
+4. **Restarts.** Only when a settled fit still has a fitting objective above 0.06 is a random start also tried. It uses one nested draw for every dimension (the 2-D draw is the leading columns of the 3-D draw), receives the same full budget, and is kept only if its own settled objective is smaller. Diagnostic pairs are never used for selection.
+5. **Consistency.** Each 3-D fit records its *median node shift*: the median distance between a node in the 2-D picture and the same node in the best-aligned shadow of the 3-D picture, divided by the median node radius of the 2-D picture. It also records the relative squared discrepancy, which weighs a few loosely constrained outlying nodes heavily.
+
+Before 0.17.1 (metric-fit-4) the 2-D and 3-D pictures were independent fits limited to 120 iterations by default, and each could be replaced by a random restart with a different seed per dimension, chosen by a margin within an unfinished optimisation. Such pictures were often round clouds inherited from the random start, and the 2-D and 3-D pictures of one analysis could be unrelated. Saved analyses keep their original pictures; the viewer labels them as coming from the earlier procedure. Geometry requests now carry the fitting version, so an earlier result is never reused for a new request.
+
 ## Intervention provenance
 
 Interventions are post-training activation multipliers on a frozen checkpoint. The multiplier is applied to both x and x°. It is not incorporated into structural weight products. Dose scans jointly change the explicitly selected gate set. The native optimizer is not updated, and training checkpoints are immutable.
 
 ## Display and histogram semantics
 
-No collision avoidance, force repulsion or coordinate jitter is applied. The 2-D display uses the first two axes of the 3-D embedding; reported stress uses all three axes and must not be interpreted as a 2-D fidelity guarantee. Both cameras scale x and y equally. A focus control can exclude outliers from the viewport, with visible counts, without changing positions or metrics. Curved carriers are decorative paths between the same endpoints.
+No collision avoidance, force repulsion or coordinate jitter is applied. Both cameras scale x and y equally. A focus control can exclude outliers from the viewport, with visible counts, without changing positions or metrics. Curved carriers are decorative paths between the same endpoints.
 
 Empirical temporal histograms divide bin counts by the total number of recorded observations in the requested window. Undefined, nonpositive-on-log-axis and outside-range observations are reported and are not silently renormalized away. Fixed limits fix the bin edges. Log scale uses geometric bin edges. This is probability per bin, not a probability density per unit value.
 

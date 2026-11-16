@@ -67,20 +67,22 @@ bars dataset). With the same networks, zero-mass edges fall to 39% (orbits) and 
 (interference), 9–10 first-layer units carry conditional mass instead of 2–4, and orbits
 accuracy rises to 0.93. Runs created with version 1 keep regenerating version-1 data.
 
-### Where the dense ball comes from
+### The dense ball (retracted in 0.17.1)
 
-The ball-shaped conditional realisation appears with the bars dataset and a wider MLP
-(4 × 64): the realisation fills a near-isotropic disc around the readout. With the same
-width, orbits gives a multi-armed fan, not a ball. In these runs the ball is therefore a
-joint property of the data and the network width, and the field datasets organise their
-realisations into arms rather than a ball.
+An earlier revision of this note described a ball-shaped conditional realisation for the
+bars dataset with an MLP of width 64. That picture came from an unfinished fit (120
+iterations, with a random restart that kept the round shape of its starting cloud). With
+the settled fits of 0.17.1 the same networks give hub-and-rays realisations; no settled
+picture in the 0.17.1 study was a ball. See `docs/SETTLED_PICTURES_31.md` and About ·
+Reading a geometry picture.
 
 ## Suggested settings for demonstrations
 
-- Interference, MLP 5 × 16, 1,024 images, 800 updates, ambiguity 0.35: learns well and
-  shows a symmetric fan.
-- Orbits, MLP 4 × 64, 1,024 images, 800 updates, ambiguity 0.35: the fullest fan of
-  conditional arms among these runs.
-- For the dense ball, use the bars dataset with an MLP of width 64.
+- Interference, MLP 5 × 16, 1,024 images, 800 updates, ambiguity 0.35: learns well. Every MLP in
+  the 0.17.1 study realised its cases as a hub with rays.
+- Orbits, MLP 4 × 64, 1,024 images, 800 updates, ambiguity 0.35: learns well;
+  in wide MLPs the rays turn freely about the hub, so read ray lengths, not angles.
+- For a fan, use a CNN with the global average readout; SGD with momentum gives a wider
+  fan than Adam (About · Field guide).
 - Raise ambiguity towards 0.5–0.6 for broader, less defined conditional realisations;
   lower it towards 0.2 for crisper ones.

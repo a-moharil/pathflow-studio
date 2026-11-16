@@ -16,10 +16,11 @@ def test_about_page_renders_guide_and_images(tmp_path):
     text = page.text
     for heading in ('The framework', 'Field guide to geometric forms', 'What shapes the form', 'Recipes'):
         assert heading in text
-    for form in ('Filament', 'Tripod', 'Sheet and lobe', 'Bushy star', 'Core and arms', 'Ball'):
+    for form in ('Filament', 'Star', 'Fan', 'Hub and rays'):
         assert f'>{form}</h3>' in text
+    assert '>Ball</h3>' not in text
     images = re.findall(r'src="(/static/about/[^"]+)"', text)
-    assert len(images) == 6
+    assert len(images) == 5
     for src in images:
         assert client.get(src).status_code == 200
     assert '>About</a>' in client.get('/').text

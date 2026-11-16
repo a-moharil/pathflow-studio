@@ -129,12 +129,12 @@ def fit(n,dim,k,pairs,truth,initial,steps):
 
 
 def compute(data,k=1.,steps=200,design=None,T=None,sensitivity=False):
-    from .metricfit import pair_design,targets,deformation,euclidean_distances
+    from .metricfit import pair_design,targets,deformation,euclidean_distances,VERSION as FIT_VERSION
     n=len(data['nodes'])
     if n>4000:return dict(status='budget_exceeded',reason='Lorentz fitting is limited to 4000 nodes; intrinsic and Euclidean results remain available.')
     design=pair_design(data) if design is None else design;T=targets(data,design) if T is None else T
     pairs=design['train'];validation=design['validation'];sources=design['sources'];unit=data['metric']['display_reference']['unit']
-    result=dict(status='available',version='metric-fit-4',curvature=-k,unit=unit,steps=steps,seed=1024,training_pairs=len(pairs),validation_pairs=len(validation),minimum_training_degree=int(design['degree'].min()),unconstrained_nodes=int(np.sum(design['degree']==0)),alignment='Readout sink at origin; spatial orthogonal isometries, no scale fitting',dimensions={},deformation={})
+    result=dict(status='available',version=FIT_VERSION,curvature=-k,unit=unit,steps=steps,seed=1024,training_pairs=len(pairs),validation_pairs=len(validation),minimum_training_degree=int(design['degree'].min()),unconstrained_nodes=int(np.sum(design['degree']==0)),alignment='Readout sink at origin; spatial orthogonal isometries, no scale fitting',dimensions={},deformation={})
     for dim in ([3]+dimensions(sensitivity)):
         outputs=[];zs=[]
         for idx,side in enumerate(['s','c']):
@@ -145,7 +145,7 @@ def compute(data,k=1.,steps=200,design=None,T=None,sensitivity=False):
             else:
                 z,optimization=fit(n,dim,k,pairs,T[side]['train'],initial,steps)
                 if optimization['best_objective']>.06:
-                    rng=np.random.default_rng(710+dim);restart=rng.normal(size=(n,dim))*np.median(T[side]['train'])/math.sqrt(2*dim)
+                    from .metricfit import nested_restart;restart=nested_restart(n,dim,float(np.median(T[side]['train'])))
                     alternate,other=fit(n,dim,k,pairs,T[side]['train'],restart,steps)
                     attempt_reports=[dict(optimization),dict(other)]
                     attempts=[optimization['best_objective'],other['best_objective']]

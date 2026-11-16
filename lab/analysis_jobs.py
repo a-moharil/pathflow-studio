@@ -66,15 +66,23 @@ def process_job(root,j):
             result['metric']['display_reference']=reference
             import hashlib
             from scipy.linalg import orthogonal_procrustes
-            from .core.metricfit import refine,deformation
+            from .core.metricfit import refine,deformation,orient_to_lower,DEFAULT_STEPS,VERSION as FIT_VERSION
             from .core.fitsettings import iterations,dimensions
-            fit_steps=iterations(payload.get('embedding_steps',120));sensitivity=dimensions(payload.get('diagnostic_dimensions',payload.get('dimension_sensitivity',False)))
+            fit_steps=iterations(payload.get('embedding_steps',DEFAULT_STEPS));sensitivity=dimensions(payload.get('diagnostic_dimensions',payload.get('dimension_sensitivity',False)))
             st.progress(root,j['id'],'Fitting Euclidean dimensions '+', '.join(map(str,[2,3]+sensitivity)))
             for side in ['structural_geometry','conditional_geometry']:
                 result[side]['embedding_diagnostic_role']='Initial spectral preview only; displayed coordinates use euclidean.dimensions and projection_diagnostics'
             design,distances=refine(result,fit_steps,sensitivity)
             for dim,entries in result['euclidean']['dimensions'].items():
-                frame_path=Path(root)/r['id']/('metric3_e'+dim+'_'+hashlib.sha256(unit_key.encode()).hexdigest()[:16]+'.npz')
+                if dim=='3':
+                    # 3-D follows the (temporally aligned) 2-D picture: its best shadow lies on the 2-D plane.
+                    if entries[0]['status']=='available':
+                        low=np.asarray(result['euclidean']['dimensions']['2'][0]['positions']);high=np.asarray(entries[0]['positions']);centre=high.mean(0)
+                        _,rotation=orient_to_lower(high,low);target=low.mean(0).tolist()+[0.]
+                        for entry in entries:
+                            if entry['status']=='available':entry['positions']=((np.asarray(entry['positions'])-centre)@rotation+np.asarray(target)).tolist()
+                    continue
+                frame_path=Path(root)/r['id']/('metric5_e'+dim+'_'+hashlib.sha256(unit_key.encode()).hexdigest()[:16]+'.npz')
                 structural=np.asarray(entries[0]['positions']);centre=structural.mean(0)
                 if frame_path.exists():
                     with np.load(frame_path) as frame:base=frame['structural']
@@ -86,7 +94,7 @@ def process_job(root,j):
             if gates:result['native']=analyze(m,tx,tr,readout,{},False)
             result.update(analysis_version=6,reference_type=reference_type,transform=transform,measurement_settings=dict(limit=budget,epsilon=.03,estimator='bcan-1'),step=step,x=a,reference=None if reference_type=='zero' else b,task=c.get('task','classification'),labels=[float(d['test_y'][a]),None if reference_type=='zero' else float(d['test_y'][b])])
             result['projection_diagnostics']={side:{dim:dict(entry[idx].get('heldout',{}),status=entry[idx].get('quality',entry[idx]['status'])) for dim,entry in result['euclidean']['dimensions'].items()} for idx,side in enumerate(['s','c'])}
-            result['fit_settings']=dict(euclidean_max_iterations=fit_steps,diagnostic_dimensions=sensitivity,lorentz=payload.get('hyperbolic'),version='metric-fit-4')
+            result['fit_settings']=dict(euclidean_max_iterations=fit_steps,diagnostic_dimensions=sensitivity,lorentz=payload.get('hyperbolic'),version=FIT_VERSION)
             result['context']=dict(experiment=r['id'],checkpoint=step,x=a,reference_type=reference_type,reference=result['reference'],readout=readout,gates=gates,transform=transform,metric=result['metric'],representation=payload.get('hyperbolic'),analysis_version=6)
             if payload.get('hyperbolic'):
                 from .core.hyperbolic import compute,numerical_validity
@@ -134,7 +142,7 @@ def process_job(root,j):
                                 old=before.get(space,{}).get(dim)
                                 if old is not None:result['temporal_deformation'][side+'_'+space+'_'+dim]=dict(reference_checkpoint=previous['step'],current_checkpoint=step,**deformation(before['intrinsic'],current['intrinsic'],old,pred))
             else:st.atomic_json(temporal_path,dict(step=step,evidence=evidence))
-            result['embedding_settings']=dict(version='metric-fit-3',steps=fit_steps,dimension_sensitivity=sensitivity)
+            result['embedding_settings']=dict(version=FIT_VERSION,steps=fit_steps,dimension_sensitivity=sensitivity)
             if kind=='dose':
                 result['dose_response']=[]
                 for alpha in [0.,.25,.5,.75,1.]:

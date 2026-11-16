@@ -64,6 +64,11 @@ def admit(root,rid,payload):
     before they reach the worker.
     """
     payload=dict(payload,analysis_version=6)
+    if payload.get('kind','analysis') in ('analysis','dose'):
+        # Geometry requests also carry the picture-fitting version, so a request computed
+        # under an earlier fitting procedure is never reused for the current one.
+        from .core.fitsettings import FIT_VERSION
+        payload['fit_version']=FIT_VERSION
     encoded=json.dumps(payload,sort_keys=True)
     with db(root) as c:
         c.execute('BEGIN IMMEDIATE')

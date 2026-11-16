@@ -1,6 +1,8 @@
-# Pathflow Studio 0.17.0 · geometry guide
+# Pathflow Studio 0.17.1 · settled geometry pictures
 
-0.17.0 adds an **About** page (header, or `/about`) rendered from `docs/GEOMETRY_GUIDE.md`: the framework, how to read a geometry picture, a field guide to the geometric forms we observe (filament, tripod, sheet and lobe, bushy star, core and arms, ball) on a concentrating–diffusing axis, what shapes them, how to test what they imply, and recipes. Geometry now reports the routing concentration of the input layer. Fixes an embedding crash on ill-conditioned conditional carriers.
+0.17.1 makes every geometry picture a settled fit of the measured distances, and builds the 3-D picture from the 2-D one, so switching dimension adds depth instead of producing a different shape. Before, the pictures stopped after 120 iterations and an unfinished random restart could replace them; the round "balls" came from that and are retracted. Each geometry card states whether its fit settled. The About guide is rebuilt from a rerun of the 54-network study on settled pictures, and the About page layout is improved. Measured quantities are unchanged. See `docs/SETTLED_PICTURES_31.md`.
+
+0.17.0 adds an **About** page (header, or `/about`) rendered from `docs/GEOMETRY_GUIDE.md`: the framework, how to read a geometry picture, a field guide to the geometric forms we observe (filament, tripod, sheet and lobe, bushy star, core and arms, ball) on a concentrating–diffusing axis (revised in 0.17.1 from settled pictures), what shapes them, how to test what they imply, and recipes. Geometry now reports the routing concentration of the input layer. Fixes an embedding crash on ill-conditioned conditional carriers.
 
 0.16.3 renders the synthetic field datasets on a dark ground. The 0.16.2 mid-grey ground made most first-layer ReLU units inactive during training, so conditional realisations were sparse; see `docs/SYNTHETIC_FIELDS_27.md`. Runs created with 0.16.2 keep their data.
 

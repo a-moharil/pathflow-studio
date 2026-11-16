@@ -68,7 +68,7 @@ def operation_edges(measure):
     return [(t.nodes[j].name,n.name,measure.branch_mass(i,k)) for i,n in enumerate(t.nodes[:measure.sink+1]) for k,j in enumerate(n.parents)]
 
 def embed_subgraph(structural,conditional,topology,scope=None,fit_hyperbolic=False,classes=None,metric_settings=None):
-    from ..core.metricfit import refine
+    from ..core.metricfit import refine,DEFAULT_STEPS
     from ..core.hyperbolic import compute
     names=list(dict.fromkeys(v for a,b,_ in structural for v in [a,b]));idx={v:i for i,v in enumerate(names)};count=len(names)
     if count>2500:return dict(status='budget_exceeded',nodes=count,scope=scope or CONVENTIONS['geometry'])
@@ -99,8 +99,8 @@ def embed_subgraph(structural,conditional,topology,scope=None,fit_hyperbolic=Fal
     hops=shortest_path(csr_matrix((np.ones(2*len(edges)),(np.r_[u,v],np.r_[v,u])),shape=(count,count)),directed=False,unweighted=True)
     shared['metric']['display_reference']=dict(unit=float(np.median(hops[np.isfinite(hops)&(hops>0)])),convention='Median unweighted hop distance of this fixed scoped topology; distances divided by this recorded unit for fitting only')
     from ..progress import stage
-    stage('Fitting independently in Euclidean 2-D and 3-D')
-    design,targets=refine(shared,steps=120)
+    stage('Fitting Euclidean 2-D, then 3-D from the settled 2-D picture')
+    design,targets=refine(shared,steps=DEFAULT_STEPS)
     if fit_hyperbolic:
         stage('Fitting Lorentz 3-D representation')
         shared['hyperbolic']=compute(shared,steps=150,design=design,T=targets)

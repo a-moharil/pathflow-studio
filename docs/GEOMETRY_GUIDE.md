@@ -34,7 +34,7 @@ enumerating paths.
   all paths. Larger means more concentrated.
 - **η₁** = exp(H₁) / N_paths and **η₂** = Z² / (N_paths · Σ Q²): occupancy ratios.
 
-In every one of the 124 analyses of the study in section 4, the conditional realisation is
+In every one of the 110 analyses of the study in section 4, the conditional realisation is
 more concentrated than the structural disposition: H₁ is lower and S_def higher.
 
 ### Derived geometry
@@ -48,10 +48,13 @@ recorded regulariser ε. High-mass edges are short; low-mass and zero-mass edges
   local slope and **d_eff** the slope at the half-coverage scale. They are finite-scale
   responses, not universal fractal dimensions, and are reported only when measured within
   the budget.
-- **Embedding.** The picture you see is a landmark classical MDS of these distances. The
-  2-D view shows the first two axes of the 3-D embedding. **Stress** reports how much the
-  picture distorts the measured distances. A high stress means the picture is a strongly
-  compressed view of a geometry that does not fit in two or three dimensions.
+- **Embedding.** The picture you see is a stress fit of these distances. The 2-D picture
+  starts from the spectral (classical scaling) layout; the 3-D picture starts from the
+  settled 2-D picture plus one further axis and is turned so that its best shadow lies on
+  the 2-D picture, so switching between 2-D and 3-D adds depth rather than producing a new
+  shape. **Stress** reports how much the picture distorts the measured distances; a high
+  stress means the geometry does not fit in two or three dimensions. Each card says
+  whether its fit settled. Read a shape only from a settled fit (section 3).
 
 ### Interventions and evidence
 
@@ -79,194 +82,195 @@ their recorded conventions.
 - **Long spokes are low mass.** A node reached only through weak or zero-mass edges sits
   far out, because those edges are long. Arms and spikes therefore mark the parts of the
   network that carry little mass for this measure, not its main route.
-- **The dense centre holds the strong routes.** For the conditional realisation, the core
-  around the readout is where the case's mass actually flows.
-- **Read the stress first.** In our study, conditional views had stress 0.57–0.88 and
-  structural views 0.17–0.93. At these values the overall form is informative, but
-  distances inside the picture are not faithful. Use the 3-D view and the measured numbers,
-  not the picture alone.
+- **Read only a settled picture.** The picture is a fit, and an unfinished fit keeps the
+  shape of its starting layout. Each geometry card states whether its fit settled. In the
+  study below 338 of 440 fits settled; the other 102 reached the 3,000-iteration limit
+  while still improving by at most 2.8% per 100 iterations, and continuing five of them
+  for another 3,000 iterations changed their shape by at most 6%. Held-out stress was
+  0.02–0.14 for the structural and 0.04–0.17 for the conditional measure: distances in
+  the picture are close to the measured ones.
+- **2-D and 3-D show the same geometry.** The 3-D picture is grown from the 2-D one and
+  turned so that its shadow lies on it. The card reports the *median node shift* between
+  the two. For the conditional pictures of CNNs it stayed below 0.07 of the median radius;
+  the 3-D view adds depth to the same form.
+
+![The same conditional fan in 2-D (left) and 3-D (right): interference, CNN, SGD, seed 2](/static/about/fan-2d-3d.jpg)
+
+- **When the shift is large, read lengths, not angles.** In wide MLPs the input pixels sit
+  on rays around a hub, and the rays can turn about the hub at little cost: the median
+  shift reached 0.98 there. Ray lengths, the hub and which rays carry mass are fixed by the
+  distances; the angles between rays are not.
 - **Routing concentration.** Under each geometry the studio reports, for the input layer,
   the average share of an input's mass carried by its single strongest first-layer edge
   (1 = every input feeds one unit; low = spread over many), and the share of edges with no
-  mass. This is the measured counterpart of the concentrating and diffusing behaviours
-  below.
+  mass. This is the measured counterpart of concentrating and diffusing behaviour; it is
+  computed on the graph, not on the picture.
+
+**Pictures made before 0.17.1.** Until 0.17.1 the 2-D and 3-D pictures were separate fits stopped after 120 iterations,
+and a random restart with a different seed for each dimension could replace either. Such
+pictures often kept the round cloud of their random start, and the 2-D and 3-D views of
+one case could be unrelated. Every "ball" we recorded with that procedure (13 of 54
+networks, 19 of 70 pair analyses) disappeared when the same case was fitted to a settled
+picture. The measured quantities (H₁, S_def, η, d\*, d_eff, routing) never depended on the
+picture and are unchanged. Saved analyses keep their old pictures, labelled on the card;
+analyse the case again for a settled one.
 
 ## 4. Field guide to geometric forms
 
-We classify the forms observed in a study of 54 networks: three datasets (bars,
-interference, orbits) × three architectures (MLP 4×16, MLP 4×64, CNN with channels 8·12·16
-and the 1×1 convolution + global average readout) × three optimisers (SGD with momentum,
-Adam, RMSprop) × two seeds, each trained for 800 updates on 1,024 images, plus five input
-pairs on 14 of the networks (70 further analyses). The forms are recorded outputs of the
-studio; none is constructed.
+The forms below are those of settled pictures in a study of 54 networks: three datasets
+(bars, interference, orbits) × three architectures (MLP 4×16, MLP 4×64, CNN with channels
+8·12·16 and the 1×1 convolution + global average readout) × three optimisers (SGD with
+momentum, Adam, RMSprop) × two seeds, each trained for 800 updates on 1,024 images, plus
+five input pairs on 14 of the networks: 110 distinct analyses. They are recorded outputs of
+the studio; none is constructed. Two forms describe the structural disposition and two the
+conditional realisation.
 
-The forms lie along one axis, from **concentrating** (mass funnelled through few routes) to
-**diffusing** (mass spread over many comparable routes).
-
-| Form | Behaviour | Typical routing concentration | Where we saw it |
+| Form | Measure | Where we saw it | Measured signature |
 |---|---|---|---|
-| Filament | strongly concentrating | high | structural, MLP trained with SGD |
-| Tripod | concentrating | high | structural and conditional, CNN trained with SGD |
-| Sheet and lobe | concentrating, split | high (CNN SGD: 0.63–0.77) | conditional, CNN trained with SGD |
-| Bushy star | intermediate | moderate | structural, MLP trained with Adam or RMSprop |
-| Core and arms | mixed | moderate | conditional, MLPs and CNNs |
-| Ball | diffusing | low (CNN Adam: 0.23–0.43) | conditional, CNN trained with Adam; rarely structural |
+| Filament | structural | 16 of 18 networks trained with SGD; 11 of 36 with Adam or RMSprop | node spread along one axis (minor/major variance ≤ 0.06) |
+| Star | structural | 25 of 36 networks trained with Adam or RMSprop, mostly MLPs | compact head of input nodes with long spikes in several directions |
+| Fan | conditional | all 18 CNNs, every pair | wedge from the readout; opening 57–65° with SGD, 38–48° with Adam or RMSprop |
+| Hub and rays | conditional | all 36 MLPs | compact hub with input pixels on straight rays |
+
+No settled picture in the study was a ball: the input nodes of a conditional realisation
+never formed a round cloud (largest minor/major variance 0.25).
 
 ### Filament
 
-![Filament: structural disposition, bars, MLP 4×64, SGD, seed 2](/static/about/filament.jpg)
+![Filament: structural disposition, orbits, CNN, SGD, seed 1](/static/about/filament.jpg)
 
-**Form.** Nodes stretched along one line, often with a short tuft at one end.
+**Form.** Nodes stretched along one line, often densest near one end, with a few short
+spikes.
 
-**Measured signature.** Low isotropy; mass concentrated on few routes.
+**Measured signature.** The minor/major variance ratio of all node positions is at most
+0.06. With SGD, 16 of 18 networks formed a filament against 11 of 36 with Adam or RMSprop;
+for MLPs the elongation differs between optimisers (Mann–Whitney U = 30, p < 0.001, 12
+against 24 networks), for CNNs it does not clearly (p = 0.05, 6 against 12).
 
-**Interpretation (hypothesis).** Distances vary along a single dominant direction: a few
-units carry the mass from layer to layer and everything else hangs off that corridor. The
-network's disposition is close to one-dimensional at this checkpoint.
+**Interpretation (hypothesis).** Distances vary along one dominant direction: the
+disposition is organised as a single corridor of strong mass from the inputs to the
+readout, and the rest of the network hangs off it.
 
-**Where seen.** Structural dispositions of MLPs trained with SGD (bars, interference): four
-of the five MLP 4×64 SGD networks inspected show a filament or tripod.
+### Star
 
-### Tripod
+![Star: structural disposition, bars, MLP 4×64, Adam, seed 2](/static/about/star.jpg)
 
-![Tripod: structural disposition, orbits, CNN, SGD, seed 1](/static/about/tripod.jpg)
+**Form.** A compact head that holds the input nodes, with long spikes (hidden and output
+units on long, low-mass edges) in several directions.
 
-**Form.** A small core with two to four long, thin arms.
-
-**Measured signature.** High routing concentration; arms are long low-mass corridors.
-
-**Interpretation (hypothesis).** A few route families dominate; the arms are the parts of
-the network those families barely use, pushed out by their long edges. The number of arms
-suggests the number of distinct weakly coupled regions, not the number of decision routes.
-
-### Sheet and lobe
-
-![Sheet and lobe: conditional realisation, interference, CNN, SGD, seed 2](/static/about/sheet-and-lobe.jpg)
-
-**Form.** An elongated dense sheet with a separate dense lobe, joined by a fan of edges.
-
-**Measured signature.** Each input sends most of its mass through one channel (CNN SGD:
-0.63–0.77 of an input's first-layer mass on its strongest edge, in all 30 analyses).
-
-**Interpretation (hypothesis).** The realisation splits into separate route families,
-each pixel committed to one channel. The case is decided by a small number of channels,
-and inputs are ordered along the sheet by which channel they feed.
-
-### Bushy star
-
-![Bushy star: structural disposition, interference, MLP 4×64, RMSprop, seed 1](/static/about/bushy-star.jpg)
-
-**Form.** A compact dense body with many short spikes in all directions.
-
-**Measured signature.** Moderate concentration; many comparable spikes.
+**Measured signature.** Minor/major variance above 0.06. On the bars dataset the input
+nodes in the head can form a round cluster (isotropy up to 0.92 in 2-D, 0.5 in 3-D): the
+inputs are nearly equidistant because each reaches the first layer through weights of
+similar size. This is a small cluster inside the head, not a ball of the network.
 
 **Interpretation (hypothesis).** Many units carry comparable structural mass and none
-dominates; the network's disposition is spread but not uniform. Most MLP 4×64
-dispositions trained with Adam or RMSprop in our study took this form.
+dominates, so the disposition spreads into several low-mass directions.
 
-### Core and arms
+### Fan
 
-![Core and arms: conditional realisation, orbits, MLP 4×64, RMSprop, seed 1](/static/about/core-and-arms.jpg)
+![Fan: conditional realisation, interference, CNN, SGD, seed 2](/static/about/fan.jpg)
 
-**Form.** A round, dense core with a few long arms.
+**Form.** A wedge opening from the readout: hidden nodes fill the wedge and the input
+pixels lie along its rim.
 
-**Measured signature.** Diffuse within the core; many zero-mass edges outside it.
+**Measured signature.** The opening (the angle around the readout that holds 90% of the
+input nodes) is 57–65° for CNNs trained with SGD and 38–48° with Adam or RMSprop (network
+means; SGD against Adam U = 36, p = 0.002, 6 against 6). Within a network it varied by
+8–30° across the five pairs; the form itself did not change.
 
-**Interpretation (hypothesis).** The case is realised by a broad, distributed set of routes
-(the core), while some units are silent for this case and sit on the arms. This is the
-mixed regime between the tripod and the ball.
+**Interpretation (hypothesis).** The wider the fan, the further apart the inputs are in
+the realised geometry. With SGD each pixel sends most of its mass through one channel
+(routing concentration 0.63–0.77 in all 30 analyses), so pixels feeding different channels share few strong
+routes and spread around the readout; with Adam the mass of a pixel is shared across
+channels (0.23–0.43), routes overlap and the pixels draw together. Across the CNN analyses
+the opening rises with routing concentration (Spearman ρ = 0.64, p < 0.001, 66 analyses in
+18 networks; analyses within a network are not independent).
 
-### Ball
+### Hub and rays
 
-![Ball: conditional realisation, interference, CNN, Adam, seed 1](/static/about/ball.jpg)
+![Hub and rays: conditional realisation, orbits, MLP 4×64, SGD, seed 2](/static/about/hub-and-rays.jpg)
 
-**Form.** A filled, nearly isotropic disc (a sphere in 3-D), sometimes fringed with spikes.
+**Form.** A compact hub holding the hidden units and the readout, with the input pixels
+on straight rays out of it. Rays that carry conditional mass form one or two sectors;
+silent pixels lie on longer rays elsewhere.
 
-**Measured signature.** Low routing concentration (CNN Adam: 0.23–0.43); the input nodes
-form a round cloud (isotropy above 0.6).
+**Measured signature.** In MLP 4×16 the 2-D and 3-D pictures agree (median node shift up
+to 0.29); in MLP 4×64 the rays turn between the two (median shift 0.24, up to 0.98) while
+the hub, the ray lengths and the realised sectors stay.
 
-**Interpretation (hypothesis).** Many routes carry comparable mass, so most nodes lie at
-similar distances from one another: a high-dimensional, distributed realisation projected
-into the plane. No single unit or channel decides the case.
+**Interpretation (hypothesis).** A pixel's distance to the hub records how strongly it is
+realised; pixels on one ray reach the hub through the same first-layer units. Because
+pixels are linked only through the hub, the directions of the rays are free, so their
+arrangement says nothing about the network.
 
 ## 5. What shapes the form
 
 These are the measured relations from the study. Each is a finite-sample observation on
 synthetic data and small networks.
 
-1. **The case.** For a fixed network, the conditional form changes with the input pair.
-   The interference CNN trained with Adam (seed 1) gave input isotropy 0.94, 0.06, 0.09,
-   0.30 and 0.91 for five pairs. A conditional form describes a case, not a network.
-2. **The seed.** The orbits CNN trained with Adam formed a ball for five of five pairs
-   with seed 1 and for one of five with seed 2.
-3. **The optimiser, for CNN routing.** SGD with momentum concentrated each input's mass on
-   one channel (0.63–0.77 on the strongest edge); Adam spread it (0.23–0.43). The two
-   ranges do not overlap; across networks, Mann–Whitney U = 0, p = 0.002 (6 against 6).
-   Balls followed: 13 of 30 pairs with Adam against 4 of 30 with SGD (network level
-   p = 0.065, not significant). Within CNNs, more concentrated routing went with less
-   ball-like forms (Spearman ρ = −0.43, p < 0.001, 60 analyses clustered in 12 networks).
-   SGD and Adam also ran at different learning rates (0.02 and 0.002), so this is an
-   optimiser-and-step-size effect until a matched comparison separates them.
-4. **The input statistics.** When images sat on a mid-grey ground (mean about 0.5), 10–14
-   of 16 first-layer ReLU units of an MLP died in training, and 85% of edges carried no
+1. **The architecture decides the conditional form.** Every CNN realisation was a fan and
+   every MLP realisation hub and rays, on all three datasets and for all optimisers.
+2. **The optimiser shapes CNN routing, and with it the fan.** SGD with momentum
+   concentrated each input's mass on one channel (0.63–0.77 on the strongest edge, 30
+   analyses); Adam spread it (0.23–0.43, 30 analyses). The ranges do not overlap; across
+   networks U = 36, p = 0.002 (6 against 6). SGD fans were correspondingly wider (section 4). SGD and Adam also ran at
+   different learning rates (0.02 and 0.002), so this is an optimiser-and-step-size effect
+   until a matched comparison separates them.
+3. **The optimiser shapes the MLP disposition.** MLPs trained with SGD formed filaments
+   (10 of 12); with Adam or RMSprop mostly stars (21 of 24).
+4. **The case changes details, not the form.** Across five pairs per network the fan
+   opening varied by 8–30°, and the form was the same in every pair.
+5. **The input statistics.** When images sat on a mid-grey ground (mean about 0.5), 10–14
+   of 16 first-layer ReLU units of an MLP died in training and 85% of edges carried no
    conditional mass. On a dark ground (mean about 0.16) this fell to 39%. Dead units make a
    realisation sparse; check the zero-mass share before reading a sparse picture.
-5. **The data structure and width.** Balls appeared on all three datasets, and no dataset
-   produced them reliably. Width alone did not decide the form; for MLPs the link between
-   routing concentration and the ball was weak (ρ = −0.17 across all 70 pair analyses,
-   p = 0.16).
-6. **Structural balls are rare.** Two of 18 CNNs and none of the 17 MLP 4×64 networks we
-   inspected showed a structural ball. The structural disposition depends only on the
-   weights, so it is a property of the trained network alone.
 
 ## 6. What a form implies, and how to test it
 
 The geometry shows where mass flows; what that implies about the network has to be tested.
 Each interpretation above predicts an interventional consequence the studio can measure.
 
-- **Concentrating forms** (filament, tripod, sheet and lobe) predict that gating the few
-  units or channels on the dense route changes the readout contrast strongly. Test: select
-  those units in Intervention controls, run a dose scan, and compare with gating the same
-  number of units on the arms.
-- **Diffusing forms** (ball) predict that gating any single unit changes the readout
-  little and that the effect grows only as many units are gated together. Test: dose-scan
-  increasing sets of units and look for a gradual rather than abrupt change.
+- **Concentrated routing** (high strongest-edge share, wide CNN fan, filament
+  disposition) predicts that gating the few units or channels on the dense route changes
+  the readout contrast strongly. Test: select those units in Intervention controls, run a
+  dose scan, and compare with gating the same number of units off the route.
+- **Diffuse routing** (low strongest-edge share, narrow CNN fan, star disposition)
+  predicts that gating any single unit changes the readout little and that the effect
+  grows only as many units are gated together. Test: dose-scan increasing sets of units
+  and look for a gradual rather than abrupt change.
 - **Disposition against realisation.** A diffuse disposition with a concentrated
   realisation means the network has many available routes but uses few for this case.
-  Compare H₁ and S_def of the two panels; in all 124 analyses the realisation was the more
+  Compare H₁ and S_def of the two panels; in all 110 analyses the realisation was the more
   concentrated.
 
 What a form does not imply: it is not a fractal dimension, not a measure of accuracy or
-robustness by itself, and not stable across cases or seeds unless shown to be. Report the
-form together with the stress, the routing concentration, the number of cases examined and
-how many of them showed it.
+robustness by itself, and not stable across seeds unless shown to be. Report the form
+together with the stress, the fit status, the routing concentration, the number of cases
+examined and how many of them showed it.
 
 ## 7. Recipes
 
-### A conditional ball, for demonstration
+### Comparing concentrated and diffuse routing in a CNN
 
 1. Build a CNN with the 1×1 convolution + global average readout, channels 8, 12, 16.
-2. Train with Adam (learning rate 0.002) or RMSprop (0.001); avoid SGD with momentum.
-3. Train two or three seeds; 800–1,500 updates on at least 1,024 images.
-4. In Geometry, analyse at least five pairs with Next pair. Keep the cases whose routing
-   concentration is low (below about 0.4) and whose zero-mass share is moderate.
-5. Check the stress and the 3-D view; report how many of the pairs formed a ball.
+2. Train one copy with SGD and momentum (learning rate 0.02) and one with Adam (0.002); two
+   seeds each; 800–1,500 updates on at least 1,024 images.
+3. In Geometry, analyse at least five pairs per network with Next pair, using the default
+   iteration limit, and check that every card reports a settled fit.
+4. Record the routing concentration and the fan opening for each case, and compare
+   networks rather than single cases.
 
 ### PneumoniaMNIST (untested)
 
 These suggestions transfer the findings above; we could not download PneumoniaMNIST in the
 environment where the study ran, so none of them has been measured on it.
 
-- **Aim for the conditional ball first**: it was far more common than the structural one.
-- **Use a CNN with the global average readout and Adam**, the combination that formed
-  conditional balls most often in our study.
+- **Expect a fan for a CNN and hub and rays for an MLP**, with the optimiser setting how
+  concentrated the routing is; compare SGD and Adam on the same architecture.
 - **Expect a high input mean.** Chest radiographs are bright images. In our data a mid-grey
   ground (mean about 0.5) killed most first-layer units of an MLP and left 85% of edges
   without conditional mass; we have not measured whether radiographs do the same.
 - **Check dead units before reading the picture.** If the zero-mass share is high, the
   sparse form reflects silent units, not routing.
 - **Train several seeds and analyse several pairs**, including normal against pneumonia
-  and pairs within a class. Choose by the measured routing concentration, not by the
-  picture alone, and report the proportion of cases that formed the ball.
-- **For a structural ball**, expect to need several seeds: it appeared in 2 of 18 CNNs in
-  our study.
+  and pairs within a class, and read each picture only once its card reports a settled fit.
